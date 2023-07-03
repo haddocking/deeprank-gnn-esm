@@ -10,9 +10,9 @@ from io import TextIOWrapper
 from pathlib import Path
 import argparse
 import torch
-from Bio.PDB import PDBParser
-from Bio import PDB
+from Bio.PDB import PDBParser, PDBIO, Structure, Model, Chain
 from Bio.PDB.Polypeptide import is_aa
+
 from esm import FastaBatchedDataset, pretrained
 
 from deeprank_gnn.ginet import GINet
@@ -45,15 +45,15 @@ GNN_ESM_MODEL = (
 )
 TOKS_PER_BATCH = 4096
 REPR_LAYERS = [0, 32, 33]
-TRUNCATION_SEQ_LENGTH = 1022
+TRUNCATION_SEQ_LENGTH = 2500
 INCLUDE = ["mean", "per_tok"]
 NPROC = mp.cpu_count() - 1 if mp.cpu_count() > 1 else 1
 BATCH_SIZE = 64
 DEVICE_NAME = "cuda" if torch.cuda.is_available() else "cpu"  # configurable
-
+CHAIN_IDS = ["A", "B"] # configurable
 """
-added two parameters in NeuralNet: num_workers and batch_size
-default batch_size is 32, default num_workers is 1
+added two parameters in NeuralNet: num_workers and batch_size 
+default batch_size is 32, default num_workers is 1 
 for both, the higher the faster but depend on gpu capacity, should be configurable too
 """
 ###########################################################
@@ -71,35 +71,47 @@ def setup_workspace(identificator: str) -> Path:
     return workspace
 
 
-def renumber_pdb(pdb_file_path: Path) -> None:
+def renumber_pdb(pdb_file_path: Path, chain_ids: list[str]) -> None:
     """Renumber PDB file starting from 1 with no gaps."""
     log.info(f"Renumbering PDB file.")
-    parser = PDB.PDBParser(QUIET=True)
+
+    parser = PDBParser(QUIET=True)
     structure = parser.get_structure("pdb_structure", pdb_file_path)
 
-    chain_residue_map = {}
-    new_residue_number = 1
+    # Create a new structure with a new model
+    new_structure = Structure.Structure("renumbered_structure")
+    new_model = Model.Model(0)
+    new_structure.add(new_model)
 
-    for model in structure:
-        for chain in model:
-            if chain.id not in chain_residue_map:
-                chain_residue_map[chain.id] = {}
+    # Get the chain IDs
+    new_chain_ids = ["A", "B"]
 
-            residue_number_map = {}
-            used_residue_numbers = set()
+    for index, chain_id in enumerate(chain_ids):
+        # Get the chain
+        chain = structure[0][chain_id]
+        chain.parent.detach_child(chain.id)
 
-            for residue in chain.get_residues():
-                while new_residue_number in used_residue_numbers:
-                    new_residue_number += 1
-                residue_number_map[residue.id[1]] = new_residue_number
-                used_residue_numbers.add(new_residue_number)
-                residue.id = (" ", new_residue_number, " ")
+        # Create a new chain with a new ID
+        new_chain = Chain.Chain(chain_id)
+
+        # Renumber residues in the chain starting from 1
+        residue_number = 1
+        for res in chain:
+            res = res.copy()
+            h, num, ins = res.id
+            res.id = (h, residue_number, ins)
+            new_chain.add(res)
+            residue_number += 1
+
+        # Add the new chain to the new model
+        new_chain.id = new_chain_ids[index]
+        new_model.add(new_chain)
 
     # Save the modified structure to the same file path
-    with open(str(pdb_file_path), "w") as new_pdb_file:
-        io = PDB.PDBIO()
-        io.set_structure(structure)
-        io.save(new_pdb_file)
+    with open(pdb_file_path, "w") as pdb_file:
+        io = PDBIO()
+        io.set_structure(new_structure)
+        io.save(pdb_file)
 
 
 def pdb_to_fasta(pdb_file_path: Path, main_fasta_fh: TextIOWrapper) -> None:
@@ -108,8 +120,7 @@ def pdb_to_fasta(pdb_file_path: Path, main_fasta_fh: TextIOWrapper) -> None:
     parser = PDBParser()
     structure = parser.get_structure("structure", pdb_file_path)
 
-    chain_ids = [chain.id for chain in structure[0]]
-    for chain_id in chain_ids:
+    for chain_id in ["A", "B"]:
         chain = structure[0][chain_id]
         sequence = ""
 
@@ -197,8 +208,7 @@ def get_embedding(fasta_file: Path, output_dir: Path) -> None:
                     result["contacts"] = contacts[i, :truncate_len, :truncate_len].clone()  # type: ignore
 
                 torch.save(
-                    result,
-                    output_file,
+                    result, output_file,
                 )
     log.info("#" * 80)
 
@@ -261,7 +271,6 @@ def predict(input: str, workspace_path: Path) -> str:
 def convert_to_csv(hdf5_path: str) -> str:
     """Convert the hdf5 file to csv."""
     hdf5_to_csv(hdf5_path)
-
     csv_path = str(hdf5_path).replace(".hdf5", ".csv")
 
     assert os.path.exists(csv_path), f"CSV file {csv_path} not found."
@@ -312,7 +321,8 @@ def main():
     pdb_file = dst
 
     ## renumber PDB
-    renumber_pdb(pdb_file_path=pdb_file)
+    # print(pdb_file)
+    renumber_pdb(pdb_file_path=pdb_file, chain_ids=CHAIN_IDS)
 
     ## PDB to FASTA
     fasta_f = Path(workspace_path) / "all.fasta"
