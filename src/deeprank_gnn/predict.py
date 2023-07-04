@@ -39,10 +39,10 @@ log.addHandler(ch)
 # Constants
 # TODO: Make these configurable
 ESM_MODEL = "esm2_t33_650M_UR50D"
-GNN_ESM_MODEL = (
-    Path(__file__).parent
-    / "paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
+GNN_ESM_MODEL = Path(
+    Path(__file__).parent, "data/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
 )
+
 TOKS_PER_BATCH = 4096
 REPR_LAYERS = [0, 32, 33]
 TRUNCATION_SEQ_LENGTH = 2500
@@ -50,10 +50,10 @@ INCLUDE = ["mean", "per_tok"]
 NPROC = mp.cpu_count() - 1 if mp.cpu_count() > 1 else 1
 BATCH_SIZE = 64
 DEVICE_NAME = "cuda" if torch.cuda.is_available() else "cpu"  # configurable
-CHAIN_IDS = ["A", "B"] # configurable
+CHAIN_IDS = ["A", "B"]  # configurable
 """
-added two parameters in NeuralNet: num_workers and batch_size 
-default batch_size is 32, default num_workers is 1 
+added two parameters in NeuralNet: num_workers and batch_size
+default batch_size is 32, default num_workers is 1
 for both, the higher the faster but depend on gpu capacity, should be configurable too
 """
 ###########################################################
@@ -208,7 +208,8 @@ def get_embedding(fasta_file: Path, output_dir: Path) -> None:
                     result["contacts"] = contacts[i, :truncate_len, :truncate_len].clone()  # type: ignore
 
                 torch.save(
-                    result, output_file,
+                    result,
+                    output_file,
                 )
     log.info("#" * 80)
 
