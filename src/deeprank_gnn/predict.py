@@ -39,9 +39,7 @@ log.addHandler(ch)
 # Constants
 # TODO: Make these configurable
 ESM_MODEL = "esm2_t33_650M_UR50D"
-GNN_ESM_MODEL = Path(
-    Path(__file__).parent, "data/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
-)
+GNN_ESM_MODEL = "paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
 
 TOKS_PER_BATCH = 4096
 REPR_LAYERS = [0, 32, 33]
@@ -50,10 +48,10 @@ INCLUDE = ["mean", "per_tok"]
 NPROC = mp.cpu_count() - 1 if mp.cpu_count() > 1 else 1
 BATCH_SIZE = 64
 DEVICE_NAME = "cuda" if torch.cuda.is_available() else "cpu"  # configurable
-CHAIN_IDS = ["A", "B"]  # configurable
+
 """
-added two parameters in NeuralNet: num_workers and batch_size
-default batch_size is 32, default num_workers is 1
+added two parameters in NeuralNet: num_workers and batch_size 
+default batch_size is 32, default num_workers is 1 
 for both, the higher the faster but depend on gpu capacity, should be configurable too
 """
 ###########################################################
@@ -71,7 +69,7 @@ def setup_workspace(identificator: str) -> Path:
     return workspace
 
 
-def renumber_pdb(pdb_file_path: Path, chain_ids: list[str]) -> None:
+def renumber_pdb(pdb_file_path: Path, chain_ids: list) -> None:
     """Renumber PDB file starting from 1 with no gaps."""
     log.info(f"Renumbering PDB file.")
 
@@ -208,8 +206,7 @@ def get_embedding(fasta_file: Path, output_dir: Path) -> None:
                     result["contacts"] = contacts[i, :truncate_len, :truncate_len].clone()  # type: ignore
 
                 torch.save(
-                    result,
-                    output_file,
+                    result, output_file,
                 )
     log.info("#" * 80)
 
@@ -279,7 +276,7 @@ def convert_to_csv(hdf5_path: str) -> str:
     return csv_path
 
 
-def parse_output(csv_output: str, workspace_path: Path) -> None:
+def parse_output(csv_output: str, workspace_path: Path, chain_ids: list) -> None:
     """Parse the csv output and return the predicted fnat."""
     _data = []
     with open(csv_output, "r") as f:
@@ -290,17 +287,17 @@ def parse_output(csv_output: str, workspace_path: Path) -> None:
             data = line.split(",")
             pdb_id = re.findall(r"b'(.*)'", str(data[3]))[0]
             predicted_fnat = float(data[5])
-            log.info(f"Predicted fnat for {pdb_id}: {predicted_fnat:.3f}")
+            log.info(f"Predicted fnat for {pdb_id} between chain{chain_ids[0]} and chain{chain_ids[1]}: {predicted_fnat:.3f}")
             _data.append([pdb_id, predicted_fnat])
 
-    output_fname = Path(workspace_path, "output.csv")
-    with open(output_fname, "w") as f:
+    #output_fname = Path(workspace_path, "output.csv")
+    with open(csv_output, "w") as f:
         f.write("pdb_id,predicted_fnat\n")
         for entry in _data:
             pdb, fnat = entry
             f.write(f"{pdb},{fnat:.3f}\n")
 
-    log.info(f"Output written to {output_fname}")
+    log.info(f"Output written to {csv_output}")
 
 
 def main():
@@ -308,11 +305,15 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("pdb_file", help="Path to the PDB file.")
+    parser.add_argument("chain_id_1", help="First chain ID.")
+    parser.add_argument("chain_id_2", help="Second chain ID.")
     args = parser.parse_args()
 
     pdb_file = args.pdb_file
+    chain_id_1 = args.chain_id_1
+    chain_id_2 = args.chain_id_2
 
-    identificator = Path(pdb_file).stem + "-gnn_esm_pred"
+    identificator = Path(pdb_file).stem + f"-gnn_esm_pred_{chain_id_1}_{chain_id_2}"
     workspace_path = setup_workspace(identificator)
 
     # Copy PDB file to workspace
@@ -322,8 +323,7 @@ def main():
     pdb_file = dst
 
     ## renumber PDB
-    # print(pdb_file)
-    renumber_pdb(pdb_file_path=pdb_file, chain_ids=CHAIN_IDS)
+    renumber_pdb(pdb_file_path=pdb_file, chain_ids=[chain_id_1, chain_id_2])
 
     ## PDB to FASTA
     fasta_f = Path(workspace_path) / "all.fasta"
@@ -340,11 +340,10 @@ def main():
     csv_output = predict(input=graph, workspace_path=workspace_path)
 
     ## Present the results
-    parse_output(csv_output=csv_output, workspace_path=workspace_path)
+    parse_output(csv_output=csv_output, workspace_path=workspace_path, chain_ids=[chain_id_1, chain_id_2])
 
     # ## Clean workspace
     # shutil.rmtree(workspace_path)
-
 
 if __name__ == "__main__":
     main()
