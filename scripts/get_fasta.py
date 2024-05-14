@@ -37,7 +37,7 @@ def pdb_to_fasta(pdb_file_dir, chain_id1, chain_id2):
                 sequence += three_to_one(residue.get_resname())
 
             # Write the sequence to the file with chain ID
-            file.write(f">{chain_id}\n")
+            file.write(f">{pdb_id}.{chain_id}\n")
             file.write(sequence + "\n")
 
 def main():
