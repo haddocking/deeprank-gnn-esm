@@ -235,7 +235,7 @@ class GraphHDF5(object):
             for i in range(len(residues)):
                 chainID = residues[i][0].decode()
                 resID = residues[i][1].decode()
-                pt_name = mol + '.' + chainID + '.pt'
+                pt_name = mol[:4] + '.' + chainID + '.pt'
                 pt_path = os.path.join(embedding_path, pt_name)
                 #res_number = int(resID) - GraphHDF5._get_starting_res(pdb_file, chainID) 
                 res_number = int(resID)

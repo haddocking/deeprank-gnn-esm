@@ -31,7 +31,7 @@ def renumber_res(pdb_input, output_dir, start_res=1):
         chains.append(chain)
 
     #merge all chains into one file 
-    out_name = os.path.basename(pdb_input).replace('.pdb', '_merged.pdb')
+    out_name = os.path.basename(pdb_input)#.replace('.pdb', '_merged.pdb')
     output = os.path.join(output_dir, out_name)
 
     #sort the outputs
