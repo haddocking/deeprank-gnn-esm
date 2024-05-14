@@ -20,12 +20,12 @@ def pdb_to_fasta(pdb_file_dir, chain_id1, chain_id2):
 
     sample_pdb = glob.glob(f'{pdb_file_dir}/*.pdb')[0]
 
-    pdb_id = sample_pdb.split("/")[-1].split(".")[0]
+    pdb_id = sample_pdb.split("/")[-1][:4]
 
     parser = PDBParser()
     structure = parser.get_structure("structure", sample_pdb)
 
-    with open(f"{pdb_id}_merged.fasta", "w") as file:
+    with open(f"{pdb_id}.fasta", "w") as file:
         for chain_id in [chain_id1, chain_id2]:
             chain = structure[0][chain_id]
             sequence = ""
