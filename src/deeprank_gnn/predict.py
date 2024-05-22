@@ -37,9 +37,8 @@ ch.setFormatter(formatter)
 log.addHandler(ch)
 
 # Constants
-# TODO: Make these configurable
 ESM_MODEL = "esm2_t33_650M_UR50D"
-GNN_ESM_MODEL = "paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
+#GNN_ESM_MODEL = "paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
 
 TOKS_PER_BATCH = 4096
 REPR_LAYERS = [0, 32, 33]
@@ -49,11 +48,7 @@ NPROC = mp.cpu_count() - 1 if mp.cpu_count() > 1 else 1
 BATCH_SIZE = 64
 DEVICE_NAME = "cuda" if torch.cuda.is_available() else "cpu"  # configurable
 
-"""
-added two parameters in NeuralNet: num_workers and batch_size 
-default batch_size is 32, default num_workers is 1 
-for both, the higher the faster but depend on gpu capacity, should be configurable too
-"""
+
 ###########################################################
 
 
@@ -212,7 +207,7 @@ def get_embedding(fasta_file: Path, output_dir: Path) -> None:
 
 
 def create_graph(pdb_path: Path, workspace_path: Path) -> str:
-    """Generate a graph ...?"""
+    """Generate a graph """
     log.info(f"Generating graph, using {NPROC} processors")
 
     outfile = str(workspace_path / "graph.hdf5")
@@ -232,7 +227,7 @@ def create_graph(pdb_path: Path, workspace_path: Path) -> str:
     return outfile
 
 
-def predict(input: str, workspace_path: Path) -> str:
+def predict(input: str, workspace_path: Path, model_path: str) -> str:
     """Predict the fnat of a protein complex."""
     log.info("Predicting fnat of protein complex.")
     gnn = GINet
@@ -256,7 +251,7 @@ def predict(input: str, workspace_path: Path) -> str:
         num_workers=NPROC,
         batch_size=BATCH_SIZE,
         target=target,
-        pretrained_model=GNN_ESM_MODEL,
+        pretrained_model=model_path,
         threshold=threshold,
     )
     model.test(hdf5=output)
@@ -307,11 +302,14 @@ def main():
     parser.add_argument("pdb_file", help="Path to the PDB file.")
     parser.add_argument("chain_id_1", help="First chain ID.")
     parser.add_argument("chain_id_2", help="Second chain ID.")
+    parser.add_argument("model_path", help="Path to the pretrained model.")
     args = parser.parse_args()
 
     pdb_file = args.pdb_file
     chain_id_1 = args.chain_id_1
     chain_id_2 = args.chain_id_2
+    model_path = args.model_path
+    
 
     identificator = Path(pdb_file).stem + f"-gnn_esm_pred_{chain_id_1}_{chain_id_2}"
     workspace_path = setup_workspace(identificator)
@@ -337,7 +335,7 @@ def main():
     graph = create_graph(pdb_path=pdb_file.parent, workspace_path=workspace_path)
 
     ## Predict fnat
-    csv_output = predict(input=graph, workspace_path=workspace_path)
+    csv_output = predict(input=graph, workspace_path=workspace_path, model_path=model_path)
 
     ## Present the results
     parse_output(csv_output=csv_output, workspace_path=workspace_path, chain_ids=[chain_id_1, chain_id_2])
