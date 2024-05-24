@@ -43,12 +43,13 @@ We provide a command-line interface for DeepRank-GNN-esm that can easily be used
 
 ```bash
 $ deeprank-gnn-esm-predict -h 
-usage: deeprank-gnn-esm-predict [-h] pdb_file chain_id_1 chain_id_2
+usage: deeprank-gnn-esm-predict [-h] pdb_file chain_id_1 chain_id_2 model_name
 
 positional arguments:
   pdb_file    Path to the PDB file.
   chain_id_1  First chain ID.
   chain_id_2  Second chain ID.
+  model_name  pre_trained model weight 
 
 optional arguments:
   -h, --help  show this help message and exit
@@ -62,7 +63,8 @@ $ wget https://files.rcsb.org/view/1B6C.pdb -q
 
 # make sure the environment is activated
 $ conda activate deeprank-gnn-esm-gpu-env
-(deeprank-gnn-esm-gpu-env) $ deeprank-gnn-esm-predict 1B6C.pdb A B 
+(deeprank-gnn-esm-gpu-env) $ export MODEL=../paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar
+(deeprank-gnn-esm-gpu-env) $ deeprank-gnn-esm-predict 1B6C.pdb A B $MODEL
  2023-06-28 06:08:21,889 predict:64 INFO - Setting up workspace - /home/DeepRank-GNN-esm/1B6C-gnn_esm_pred_A_B
  2023-06-28 06:08:21,945 predict:72 INFO - Renumbering PDB file.
  2023-06-28 06:08:22,294 predict:104 INFO - Reading sequence of PDB 1B6C.pdb
