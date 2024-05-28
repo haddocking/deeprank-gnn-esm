@@ -18,11 +18,11 @@ $ cd DeepRank-GNN-esm
 
 2. Install either the CPU or GPU version of DeepRank-GNN-esm
 ```bash
-$ conda env create -f environment-cpu.yml && conda activate deeprank-gnn-esm-cpu-env
+$ conda env create -f environment-cpu.yml && conda activate deeprank-gnn-esm-cpu
 ```
 OR
 ```bash
-$ conda env create -f environment-gpu.yml && conda activate deeprank-gnn-esm-gpu-env
+$ conda env create -f environment-gpu.yml && conda activate deeprank-gnn-esm-gpu
 ```
 
 3. Install the command line tool
@@ -63,8 +63,8 @@ $ wget https://files.rcsb.org/view/1B6C.pdb -q
 
 # make sure the environment is activated
 $ conda activate deeprank-gnn-esm-gpu-env
-(deeprank-gnn-esm-gpu-env) $ export MODEL=../paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar
-(deeprank-gnn-esm-gpu-env) $ deeprank-gnn-esm-predict 1B6C.pdb A B $MODEL
+(deeprank-gnn-esm-gpu) $ export MODEL=../paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar
+(deeprank-gnn-esm-gpu) $ deeprank-gnn-esm-predict 1B6C.pdb A B $MODEL
  2023-06-28 06:08:21,889 predict:64 INFO - Setting up workspace - /home/DeepRank-GNN-esm/1B6C-gnn_esm_pred_A_B
  2023-06-28 06:08:21,945 predict:72 INFO - Renumbering PDB file.
  2023-06-28 06:08:22,294 predict:104 INFO - Reading sequence of PDB 1B6C.pdb
