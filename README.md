@@ -6,6 +6,8 @@ Graph Network for protein-protein interface including language model features.
 
 For details refer to our publication at https://academic.oup.com/bioinformaticsadvances/article/4/1/vbad191/7511844
 
+For detailed protocol to use our DeepRank-GNN-esm software, refer to our publication at https://arxiv.org/abs/2407.16375
+
 ## Installation
 
 With Anaconda
