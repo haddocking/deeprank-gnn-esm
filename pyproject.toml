@@ -2,23 +2,30 @@
 name = "deeprank-gnn-esm"
 version = "0.1.0"
 description = "Graph Network for protein-protein interface including language model features"
-authors = [
-    {name="Xiaotong Xu"}, {email="x.xu1@uu.nl>"}]
+authors = [{ name = "Xiaotong Xu" }, { email = "x.xu1@uu.nl" }]
+maintainers = [{ name = "BonvinLab" }, { email = "bonvinlab.support@uu.nl" }]
 readme = "README.md"
-license = {file = "LICENSE"}
-classifiers=[
-    'Development Status :: 2 - Pre-Alpha',
-    'Intended Audience :: Developers',
-    'License :: OSI Approved :: Apache Software License',
-    'Natural Language :: English', 'Programming Language :: Python :: 3.9',
-    'Topic :: Scientific/Engineering :: Chemistry'
+license = { file = "LICENSE" }
+classifiers = [
+  'Development Status :: 5 - Production/Stable',
+  'Intended Audience :: Developers',
+  'Intended Audience :: Science/Research',
+  'License :: OSI Approved :: Apache Software License',
+  'Topic :: Scientific/Engineering :: Chemistry',
+  'Topic :: Scientific/Engineering :: Artificial Intelligence',
+  'Programming Language :: Python :: 3.9',
 ]
-keywords = []
-# include = [
-#     "LICENSE",
-#     "README.md",
-# ]
-
+keywords = [
+  "protein-protein interaction",
+  "graph neural network",
+  "esm-2",
+  "machine learning",
+  "computational biology",
+]
 
 [project.scripts]
 deeprank-gnn-esm-predict = "deeprank_gnn.predict:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
