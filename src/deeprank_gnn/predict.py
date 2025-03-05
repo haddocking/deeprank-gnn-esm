@@ -25,6 +25,7 @@ import warnings
 from Bio import BiopythonWarning
 
 warnings.filterwarnings("ignore", category=BiopythonWarning)
+warnings.filterwarnings("ignore", message=".*deprecated.*")
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -36,18 +37,17 @@ formatter = logging.Formatter(
 ch.setFormatter(formatter)
 log.addHandler(ch)
 
-# Constants
+
 ESM_MODEL = "esm2_t33_650M_UR50D"
-#GNN_ESM_MODEL = "paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
+GNN_ESM_MODEL = "paper_pretrained_models/scoring_of_docking_models/gnn_esm/treg_yfnat_b64_e20_lr0.001_foldall_esm.pth.tar"
 
 TOKS_PER_BATCH = 4096
-REPR_LAYERS = [0, 32, 33]
+REPR_LAYERS = [33]
 TRUNCATION_SEQ_LENGTH = 2500
 INCLUDE = ["mean", "per_tok"]
-NPROC = mp.cpu_count() - 1 if mp.cpu_count() > 1 else 1
+MAX_cores = 50
 BATCH_SIZE = 64
 DEVICE_NAME = "cuda" if torch.cuda.is_available() else "cpu"  # configurable
-
 
 ###########################################################
 
@@ -129,7 +129,7 @@ def pdb_to_fasta(pdb_file_path: Path, main_fasta_fh: TextIOWrapper) -> None:
         main_fasta_fh.write(f">{root}.{chain.id}\n{sequence}\n")
 
 
-def get_embedding(fasta_file: Path, output_dir: Path) -> None:
+def get_embedding(fasta_file: Path, output_dir: Path) -> list[Path]:
     """
     Get the embedding of a protein sequence.
 
@@ -138,6 +138,7 @@ def get_embedding(fasta_file: Path, output_dir: Path) -> None:
     log.info("Generating embedding for protein sequence.")
     log.info("#" * 80)
     model, alphabet = pretrained.load_model_and_alphabet(ESM_MODEL)
+
     model.eval()
 
     if torch.cuda.is_available():
@@ -159,6 +160,7 @@ def get_embedding(fasta_file: Path, output_dir: Path) -> None:
     assert all(-(model.num_layers + 1) <= i <= model.num_layers for i in REPR_LAYERS)  # type: ignore
     repr_layers = [(i + model.num_layers + 1) % (model.num_layers + 1) for i in REPR_LAYERS]  # type: ignore
 
+    embedd_path = []
     with torch.no_grad():
         for batch_idx, (labels, strs, toks) in enumerate(data_loader):
             log.info(
@@ -203,12 +205,14 @@ def get_embedding(fasta_file: Path, output_dir: Path) -> None:
                 torch.save(
                     result, output_file,
                 )
+                embedd_path.append(output_file)
     log.info("#" * 80)
+    return embedd_path
 
 
-def create_graph(pdb_path: Path, workspace_path: Path) -> str:
-    """Generate a graph """
-    log.info(f"Generating graph, using {NPROC} processors")
+def create_graph(pdb_path: Path, workspace_path: Path, nproc: int) -> str:
+    """Generate a graph"""
+    log.info(f"Generating graph, using {nproc} processors")
 
     outfile = str(workspace_path / "graph.hdf5")
 
@@ -218,7 +222,7 @@ def create_graph(pdb_path: Path, workspace_path: Path) -> str:
             embedding_path=workspace_path,
             graph_type="residue",
             outfile=outfile,
-            nproc=NPROC,
+            nproc=nproc,
             tmpdir=tmpdir,
         )
 
@@ -227,7 +231,7 @@ def create_graph(pdb_path: Path, workspace_path: Path) -> str:
     return outfile
 
 
-def predict(input: str, workspace_path: Path, model_path: str) -> str:
+def predict(input: str, workspace_path: Path, ncores) -> str:
     """Predict the fnat of a protein complex."""
     log.info("Predicting fnat of protein complex.")
     gnn = GINet
@@ -248,10 +252,10 @@ def predict(input: str, workspace_path: Path, model_path: str) -> str:
         device_name=device_name,
         edge_feature=edge_attr,
         node_feature=node_feature,
-        num_workers=NPROC,
+        num_workers=ncores,
         batch_size=BATCH_SIZE,
         target=target,
-        pretrained_model=model_path,
+        pretrained_model=GNN_ESM_MODEL,
         threshold=threshold,
     )
     model.test(hdf5=output)
@@ -282,10 +286,12 @@ def parse_output(csv_output: str, workspace_path: Path, chain_ids: list) -> None
             data = line.split(",")
             pdb_id = re.findall(r"b'(.*)'", str(data[3]))[0]
             predicted_fnat = float(data[5])
-            log.info(f"Predicted fnat for {pdb_id} between chain{chain_ids[0]} and chain{chain_ids[1]}: {predicted_fnat:.3f}")
+            log.info(
+                f"Predicted fnat for {pdb_id} between chain{chain_ids[0]} and chain{chain_ids[1]}: {predicted_fnat:.3f}"
+            )
             _data.append([pdb_id, predicted_fnat])
 
-    #output_fname = Path(workspace_path, "output.csv")
+    # output_fname = Path(workspace_path, "output.csv")
     with open(csv_output, "w") as f:
         f.write("pdb_id,predicted_fnat\n")
         for entry in _data:
@@ -295,6 +301,31 @@ def parse_output(csv_output: str, workspace_path: Path, chain_ids: list) -> None
     log.info(f"Output written to {csv_output}")
 
 
+def split_input_pdb(pdb_file: Path) -> list[Path]:
+    """Saves PDB models in a split folder, handling both single and multiple models."""
+    parser = PDBParser(QUIET=True)
+    structure = parser.get_structure("structure", pdb_file)
+
+    output_dir = pdb_file.parent / f"{pdb_file.stem}_split"
+    output_dir.mkdir(exist_ok=True)
+
+    saved_files = []
+    io = PDBIO()
+
+    # Check if the PDB contains multiple models
+    is_ensemble = len(list(structure)) > 1
+
+    for model in structure:
+        model_id = model.id if is_ensemble else 0  # Use 0 for single structure
+        output_file = output_dir / f"{pdb_file.stem}_model_{model_id}.pdb"
+        io.set_structure(model)
+        io.save(str(output_file))
+        saved_files.append(Path(output_file))
+
+    log.info(f"Processed {len(saved_files)} model(s) from {pdb_file.name}")
+    return saved_files
+
+
 def main():
     """Main function."""
 
@@ -302,14 +333,13 @@ def main():
     parser.add_argument("pdb_file", help="Path to the PDB file.")
     parser.add_argument("chain_id_1", help="First chain ID.")
     parser.add_argument("chain_id_2", help="Second chain ID.")
-    parser.add_argument("model_path", help="Path to the pretrained model.")
+    parser.add_argument("num_cores", help="Number of cores to use")
     args = parser.parse_args()
 
     pdb_file = args.pdb_file
     chain_id_1 = args.chain_id_1
     chain_id_2 = args.chain_id_2
-    model_path = args.model_path
-    
+    num_cores = args.num_cores
 
     identificator = Path(pdb_file).stem + f"-gnn_esm_pred_{chain_id_1}_{chain_id_2}"
     workspace_path = setup_workspace(identificator)
@@ -320,28 +350,51 @@ def main():
     shutil.copy(src, dst)
     pdb_file = dst
 
-    ## renumber PDB
-    renumber_pdb(pdb_file_path=pdb_file, chain_ids=[chain_id_1, chain_id_2])
+    pdb_files = split_input_pdb(pdb_file)
+    num_cores = min(int(num_cores), MAX_cores, len(pdb_files))
+    log.info(f"Using {num_cores} cores for processing")
 
     ## PDB to FASTA
-    fasta_f = Path(workspace_path) / "all.fasta"
+    fasta_f = Path(workspace_path) / (pdb_files[0].stem + ".fasta")
     with open(fasta_f, "w") as f:
-        pdb_to_fasta(pdb_file_path=Path(pdb_file), main_fasta_fh=f)
+        pdb_to_fasta(pdb_file_path=Path(pdb_files[0]), main_fasta_fh=f)
 
     ## Generate embeddings
-    get_embedding(fasta_file=fasta_f, output_dir=workspace_path)
+    embed_paths = get_embedding(fasta_file=fasta_f, output_dir=workspace_path)
+    
+    embeds = []
+    for pdb_file in pdb_files:
+        ## renumber PDB
+        renumber_pdb(pdb_file_path=pdb_file, chain_ids=[chain_id_1, chain_id_2])
 
-    ## Generate graphs
-    graph = create_graph(pdb_path=pdb_file.parent, workspace_path=workspace_path)
+        # for pdbs that not used in embed cal, copy the embed and rename the embed to aviod duplication
+        if pdb_file != pdb_files[0]:
+            for embed_chain in embed_paths:
+                pdb_name = pdb_file.stem
+                # Only replace the part before the first dot in the stem (model name)
+                new_stem = pdb_name + embed_chain.stem[embed_chain.stem.find(".") :]
+                dst = embed_chain.with_name(new_stem + embed_chain.suffix)
+                shutil.copy(embed_chain, dst)
+                embeds.append(dst)
 
+    ## Generate graph
+    graph = create_graph(
+        pdb_path=pdb_file.parent, workspace_path=workspace_path, nproc=num_cores
+    )
     ## Predict fnat
-    csv_output = predict(input=graph, workspace_path=workspace_path, model_path=model_path)
+    csv_output = predict(input=graph, workspace_path=workspace_path, ncores=num_cores)
 
     ## Present the results
-    parse_output(csv_output=csv_output, workspace_path=workspace_path, chain_ids=[chain_id_1, chain_id_2])
+    parse_output(
+        csv_output=csv_output,
+        workspace_path=workspace_path,
+        chain_ids=[chain_id_1, chain_id_2],
+    )
 
-    # ## Clean workspace
-    # shutil.rmtree(workspace_path)
+    #Clean copyed embeds
+    for embed in embeds:
+        embed.unlink()
+
 
 if __name__ == "__main__":
     main()
