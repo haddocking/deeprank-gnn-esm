@@ -128,7 +128,7 @@ class GraphHDF5(object):
                         print(e)
                     f.close()
                     os.remove(name)
-            print("Graphs added to the HDF5 file")
+            #print("Graphs added to the HDF5 file")
 
         # add embedding to the hdf5 file
 
@@ -235,7 +235,7 @@ class GraphHDF5(object):
             for i in range(len(residues)):
                 chainID = residues[i][0].decode()
                 resID = residues[i][1].decode()
-                pt_name = mol[:4] + '.' + chainID + '.pt'
+                pt_name = mol + '.' + chainID + '.pt'
                 pt_path = os.path.join(embedding_path, pt_name)
                 #res_number = int(resID) - GraphHDF5._get_starting_res(pdb_file, chainID) 
                 res_number = int(resID)
@@ -246,7 +246,7 @@ class GraphHDF5(object):
                     embedding_tersor[i] = torch.zeros(1280)
             assert not torch.all(torch.eq(embedding_tersor, 0))
             f.create_dataset(f'/{mol}/node_data/embedding', data=embedding_tersor)
-        print(f'Embedding added to the {outfile} file')
+        #print(f'Embedding added to the {outfile} file')
         f.close()
 
     '''
