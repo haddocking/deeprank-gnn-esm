@@ -1,6 +1,6 @@
 # ==============================================================================
 ARG CUDA=12.8.0
-FROM nvidia/cuda:${CUDA}-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:${CUDA}-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
