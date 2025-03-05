@@ -22,7 +22,7 @@ jobs:
           auto-activate-base: false
 
       - name: install test dependencies
-        run: pip install pytest pytest-cov coverage
+        run: pip install pytest pytest-cov coverage hypothesis
 
       - name: run tests
         run: >-
