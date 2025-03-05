@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: test-env
+          environment-file: environment-cpu.yml
+          python-version: 3.9
+          auto-activate-base: false
+
+      - name: install test dependencies
+        run: pip install pytest pytest-cov coverage
+
+      - name: run tests
+        run: >-
+          pytest --cov
+          --cov-report xml:coverage.xml
+          --cov-append
+          -vv
+          --hypothesis-show-statistics
+
+      - name: Run codacy-coverage-reporter
+        uses: codacy/codacy-coverage-reporter-action@v1
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: coverage.xml
