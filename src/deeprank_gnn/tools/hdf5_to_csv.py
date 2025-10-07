@@ -6,7 +6,7 @@ import numpy as np
 def hdf5_to_csv(hdf5_path):
         
         hdf5 = h5py.File(hdf5_path,'r+')
-        name = hdf5_path.split('.')[0]
+        name = hdf5_path.rsplit('.', 1)[0]
         
         first = True
         for epoch in hdf5.keys():
