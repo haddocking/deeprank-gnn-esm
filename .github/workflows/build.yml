@@ -9,8 +9,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [cpu, gpu]
 
     steps:
       - uses: actions/checkout@v4
 
-      - run: docker build .
+      - run: docker build -f Dockerfile.${{ matrix.variant }} .
