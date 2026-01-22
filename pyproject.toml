@@ -1,6 +1,6 @@
 [project]
 name = "deeprank-gnn-esm"
-version = "0.1.0"
+version = "0.3.0"
 description = "Graph Network for protein-protein interface including language model features"
 authors = [{ name = "Xiaotong Xu" }, { email = "x.xu1@uu.nl" }]
 maintainers = [{ name = "BonvinLab" }, { email = "bonvinlab.support@uu.nl" }]
