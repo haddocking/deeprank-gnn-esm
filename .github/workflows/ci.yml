@@ -23,10 +23,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
 
       - name: install torch (cpu-only)
-        run: uv pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+        run: uv pip install --system torch --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: install package with dev dependencies
-        run: uv pip install ".[dev]"
+        run: uv pip install --system ".[dev]"
 
       - name: run tests
         run: >-
