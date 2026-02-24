@@ -21,6 +21,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          cache-dependency-glob: "pyproject.toml"
 
       - name: install torch (cpu-only)
         run: uv pip install --system torch --extra-index-url https://download.pytorch.org/whl/cpu
@@ -59,7 +61,7 @@ jobs:
         with:
           activate-environment: deeprank-gnn-esm-gpu
           environment-file: environment-gpu.yml
-          auto-activate-base: false
+          auto-activate: false
 
       - name: install deeprank-gnn-esm
         run: pip install .
