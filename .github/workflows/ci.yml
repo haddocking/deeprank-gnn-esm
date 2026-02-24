@@ -20,11 +20,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - uses: astral-sh/setup-uv@v5
+
       - name: install torch (cpu-only)
-        run: pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+        run: uv pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: install package with dev dependencies
-        run: pip install ".[dev]"
+        run: uv pip install ".[dev]"
 
       - name: run tests
         run: >-
