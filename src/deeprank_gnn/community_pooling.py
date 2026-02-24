@@ -78,7 +78,7 @@ def community_detection_per_batch(
 
         # detect communities using MCL
         elif method == "mcl":
-            matrix = nx.to_scipy_sparse_matrix(subg)
+            matrix = csr_matrix(nx.adjacency_matrix(subg))
             #matrix = csr_matrix(nx.adjacency_matrix(subg))
             # run MCL with default parameters
             result = mc.run_mcl(matrix)
