@@ -950,7 +950,7 @@ class NeuralNet(object):
                     # mol name is a bit different
                     # since there are strings
                     if data_name == "mol":
-                        data_value = np.string_(data_value)
+                        data_value = np.bytes_(data_value)
                         string_dt = h5py.special_dtype(vlen=str)
                         sg.create_dataset(data_name, data=data_value, dtype=string_dt)
 
