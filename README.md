@@ -15,33 +15,22 @@ at <https://arxiv.org/abs/2407.16375>
 
 ## Installation
 
-Since the project requires several ML-specific libraries, it's easier to setup
-with Anaconda:
+```bash
+pip install deeprank-gnn-esm
+```
 
-- Clone the repository
+### GPU support
 
-  ```bash
-  git clone https://github.com/haddocking/deeprank-gnn-esm.git
-  cd deeprank-gnn-esm
-  ```
+GPU support is included automatically — the default PyPI `torch` wheel bundles CUDA.
+If your system requires a specific CUDA version, install `torch` first:
 
-- Setup the environment, either CPU or GPU
+```bash
+# example for CUDA 12.1
+pip install torch --extra-index-url https://download.pytorch.org/whl/cu121
+pip install deeprank-gnn-esm
+```
 
-  ```bash
-  conda env create -f environment-cpu.yml && conda activate deeprank-gnn-esm-cpu
-  ```
-
-  OR
-
-  ```bash
-  conda env create -f environment-gpu.yml && conda activate deeprank-gnn-esm-gpu
-  ```
-
-- Install
-
-  ```bash
-  pip install .
-  ```
+Check [pytorch.org](https://pytorch.org/get-started/locally/) for the right CUDA version for your system.
 
 ## Usage
 
@@ -71,9 +60,7 @@ Example, score the `1B6C` complex
 # download it
 $ wget https://files.rcsb.org/view/1B6C.pdb -q
 
-# make sure the environment is activated
-$ conda activate deeprank-gnn-esm-gpu-env
-(deeprank-gnn-esm-gpu) $ deeprank-gnn-esm-predict 1B6C.pdb A B 1
+$ deeprank-gnn-esm-predict 1B6C.pdb A B 1
  2023-06-28 06:08:21,889 predict:64 INFO - Setting up workspace - /home/deeprank-gnn-esm/1B6C-gnn_esm_pred_A_B
  2023-06-28 06:08:21,945 predict:72 INFO - Renumbering PDB file.
  2023-06-28 06:08:22,294 predict:104 INFO - Reading sequence of PDB 1B6C.pdb
