@@ -19,6 +19,15 @@ at <https://arxiv.org/abs/2407.16375>
 pip install deeprank-gnn-esm
 ```
 
+### CPU only
+
+To avoid downloading the heavy CUDA libraries (~3GB), install the CPU-only `torch` first:
+
+```bash
+pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+pip install deeprank-gnn-esm
+```
+
 ### GPU support
 
 GPU support is included automatically — the default PyPI `torch` wheel bundles CUDA.

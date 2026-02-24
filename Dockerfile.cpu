@@ -15,7 +15,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /opt/deeprank-gnn-esm
 COPY . .
 
-RUN uv pip install --system .
+RUN uv pip install --system torch --extra-index-url https://download.pytorch.org/whl/cpu && \
+  uv pip install --system .
 
 ENTRYPOINT ["deeprank-gnn-esm-predict"]
 # ==============================================================================
