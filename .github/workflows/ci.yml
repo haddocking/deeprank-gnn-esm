@@ -5,27 +5,22 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  test-pip-cpu:
+    name: test (pip, cpu)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -el {0}
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/setup-python@v5
         with:
-          activate-environment: test-env
-          environment-file: environment-cpu.yml
-          python-version: 3.9
-          auto-activate-base: false
+          python-version: "3.9"
 
-      - name: install deeprank-gnn-esm
-        run: pip install .
+      - name: install torch (cpu-only)
+        run: pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
-      - name: install test dependencies
-        run: pip install pytest pytest-cov coverage hypothesis
+      - name: install package with dev dependencies
+        run: pip install ".[dev]"
 
       - name: run tests
         run: >-
@@ -42,3 +37,32 @@ jobs:
         with:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           coverage-reports: coverage.xml
+
+  test-conda-gpu:
+    name: test (conda, gpu)
+    needs: test-pip-cpu
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: deeprank-gnn-esm-gpu
+          environment-file: environment-gpu.yml
+          auto-activate-base: false
+
+      - name: install deeprank-gnn-esm
+        run: pip install .
+
+      - name: install test dependencies
+        run: pip install pytest hypothesis
+
+      - name: run tests
+        run: >-
+          pytest
+          -vv
+          --hypothesis-show-statistics
