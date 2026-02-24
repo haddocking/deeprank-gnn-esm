@@ -3,7 +3,7 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
 
-from torch_geometric.utils import remove_self_loops, add_self_loops, softmax, scatter
+from torch_geometric.utils import scatter
 
 # torch_geometric import
 from torch_geometric.nn.inits import uniform
