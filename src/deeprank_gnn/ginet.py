@@ -3,10 +3,7 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
 
-from torch_scatter import scatter_mean
-from torch_scatter import scatter_sum
-
-from torch_geometric.utils import remove_self_loops, add_self_loops, softmax
+from torch_geometric.utils import remove_self_loops, add_self_loops, softmax, scatter
 
 # torch_geometric import
 from torch_geometric.nn.inits import uniform
@@ -61,8 +58,7 @@ class GINetConvLayer(torch.nn.Module):
         alpha = F.softmax(alpha, dim=1)
         h = alpha * xcol
 
-        out = torch.zeros(num_node, self.out_channels).to(alpha.device)
-        z = scatter_sum(h, row, dim=0, out=out)
+        z = scatter(h, row, dim=0, dim_size=num_node, reduce='sum')
 
         return z
 
@@ -120,8 +116,8 @@ class GINet(torch.nn.Module):
         x_ext, batch_ext = max_pool_x(cluster, data_ext.x, data_ext.batch)
 
         # FC
-        x = scatter_mean(x, batch, dim=0)
-        x_ext = scatter_mean(x_ext, batch_ext, dim=0)
+        x = scatter(x, batch, dim=0, reduce='mean')
+        x_ext = scatter(x_ext, batch_ext, dim=0, reduce='mean')
 
         x = torch.cat([x, x_ext], dim=1)
         x = act(self.fc1(x))

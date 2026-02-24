@@ -4,7 +4,7 @@ import networkx as nx
 from scipy.sparse import csr_matrix
 import torch
 
-from torch_scatter import scatter_max, scatter_mean
+from torch_geometric.utils import scatter
 from torch_geometric.nn.pool.pool import pool_edge, pool_batch, pool_pos
 from torch_geometric.nn.pool.consecutive import consecutive_cluster
 from torch_geometric.data import Batch, Data
@@ -204,7 +204,7 @@ def community_pooling(cluster, data):
 
     # pool the node infos
     try:
-        x, _ = scatter_max(data.x, cluster, dim=0)
+        x = scatter(data.x, cluster, dim=0, reduce='max')
     except:
         print(data)
 
@@ -219,9 +219,9 @@ def community_pooling(cluster, data):
 
     # pool the pos
     if has_pos:
-        pos = scatter_mean(data.pos, cluster, dim=0)
+        pos = scatter(data.pos, cluster, dim=0, reduce='mean')
     if has_pos2D:
-        pos2D = scatter_mean(data.pos2D, cluster, dim=0)
+        pos2D = scatter(data.pos2D, cluster, dim=0, reduce='mean')
 
     if has_cluster:
         c0, c1 = data.cluster0, data.cluster1
