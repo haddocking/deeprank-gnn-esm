@@ -8,13 +8,17 @@ jobs:
   test-pip-cpu:
     name: test (pip, cpu)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+      fail-fast: true
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: ${{ matrix.python-version }}
 
       - name: install torch (cpu-only)
         run: pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
@@ -66,3 +70,16 @@ jobs:
           pytest
           -vv
           --hypothesis-show-statistics
+
+  build-docker:
+    name: build docker (${{ matrix.variant }})
+    needs: test-conda-gpu
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [cpu, gpu]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker build -f Dockerfile.${{ matrix.variant }} .
