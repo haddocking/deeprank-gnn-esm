@@ -37,8 +37,9 @@ jobs:
 
       - uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699
         if: >-
-          ${{ github.event_name != 'pull_request' ||
-          github.event.pull_request.head.repo.full_name == github.repository }}
+          ${{ matrix.python-version == '3.11' && (
+          github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository) }}
         with:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           coverage-reports: coverage.xml
