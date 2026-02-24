@@ -1,15 +1,24 @@
 import torch
-import torch.nn as nn
+from torch.nn import Parameter
 import torch.nn.functional as F
-from torch_geometric.nn import max_pool_x
-from torch_geometric.nn.inits import uniform
-from torch_geometric.utils import scatter
+import torch.nn as nn
 
-from deeprank_gnn.community_pooling import community_pooling, get_preloaded_cluster
+from torch_geometric.utils import remove_self_loops, add_self_loops, softmax, scatter
+
+# torch_geometric import
+from torch_geometric.nn.inits import uniform
+from torch_geometric.nn import max_pool_x
+from torch_geometric.data import DataLoader
+
+# deeprank_gnn import
+from deeprank_gnn.community_pooling import get_preloaded_cluster, community_pooling
+from deeprank_gnn.NeuralNet import NeuralNet
+from deeprank_gnn.DataSet import HDF5DataSet, PreCluster
 
 
 class GINetConvLayer(torch.nn.Module):
     def __init__(self, in_channels, out_channels, number_edge_features=1, bias=False):
+
         super(GINetConvLayer, self).__init__()
 
         self.in_channels = in_channels
@@ -25,12 +34,14 @@ class GINetConvLayer(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
+
         size = self.in_channels
         uniform(size, self.fc.weight)
         uniform(size, self.fc_attention.weight)
         uniform(size, self.fc_edge_attr.weight)
 
     def forward(self, x, edge_index, edge_attr):
+
         row, col = edge_index
         num_node = len(x)
         edge_attr = edge_attr.unsqueeze(-1) if edge_attr.dim() == 1 else edge_attr
@@ -47,7 +58,7 @@ class GINetConvLayer(torch.nn.Module):
         alpha = F.softmax(alpha, dim=1)
         h = alpha * xcol
 
-        z = scatter(h, row, dim=0, dim_size=num_node, reduce="sum")
+        z = scatter(h, row, dim=0, dim_size=num_node, reduce='sum')
 
         return z
 
@@ -105,8 +116,8 @@ class GINet(torch.nn.Module):
         x_ext, batch_ext = max_pool_x(cluster, data_ext.x, data_ext.batch)
 
         # FC
-        x = scatter(x, batch, dim=0, reduce="mean")
-        x_ext = scatter(x_ext, batch_ext, dim=0, reduce="mean")
+        x = scatter(x, batch, dim=0, reduce='mean')
+        x_ext = scatter(x_ext, batch_ext, dim=0, reduce='mean')
 
         x = torch.cat([x, x_ext], dim=1)
         x = act(self.fc1(x))
