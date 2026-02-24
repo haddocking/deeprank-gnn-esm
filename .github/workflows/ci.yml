@@ -5,8 +5,8 @@ on:
     branches: [main]
 
 jobs:
-  test-pip-cpu:
-    name: test (pip, cpu)
+  test:
+    name: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -43,38 +43,9 @@ jobs:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           coverage-reports: coverage.xml
 
-  test-conda-gpu:
-    name: test (conda, gpu)
-    needs: test-pip-cpu
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -el {0}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          activate-environment: deeprank-gnn-esm-gpu
-          environment-file: environment-gpu.yml
-          auto-activate: false
-
-      - name: install deeprank-gnn-esm
-        run: pip install .
-
-      - name: install test dependencies
-        run: pip install pytest hypothesis
-
-      - name: run tests
-        run: >-
-          pytest
-          -vv
-          --hypothesis-show-statistics
-
   build-docker:
     name: test if docker is buildable
-    needs: test-conda-gpu
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
