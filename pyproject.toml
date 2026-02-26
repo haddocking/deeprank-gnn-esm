@@ -1,11 +1,32 @@
 [project]
 name = "deeprank-gnn-esm"
-version = "0.3.0"
+version = "1.0.0"
 description = "Graph Network for protein-protein interface including language model features"
 authors = [{ name = "Xiaotong Xu" }, { email = "x.xu1@uu.nl" }]
 maintainers = [{ name = "BonvinLab" }, { email = "bonvinlab.support@uu.nl" }]
 readme = "README.md"
 license = { file = "LICENSE" }
+requires-python = ">=3.9,<3.14"
+dependencies = [
+  "torch>=1.13.0",
+  "torch-geometric>=2.3.0",
+  "numpy>=1.24.0",
+  "scipy>=1.10.0",
+  "scikit-learn>=1.2.0",
+  "h5py>=3.7.0",
+  "networkx>=2.8.0",
+  "biopython>=1.78",
+  "fair-esm>=2.0.0",
+  "pdb2sql>=0.5.3",
+  "pandas>=2.0.0",
+  "tqdm>=4.64.0",
+  "python-louvain>=0.15",
+  "markov-clustering>=0.0.6.dev0",
+  "freesasa>=2.2.0",
+  "matplotlib>=3.7.0",
+  "plotly>=5.0.0",
+  "chart-studio>=1.1.0",
+]
 classifiers = [
   'Development Status :: 5 - Production/Stable',
   'Intended Audience :: Developers',
@@ -14,6 +35,10 @@ classifiers = [
   'Topic :: Scientific/Engineering :: Chemistry',
   'Topic :: Scientific/Engineering :: Artificial Intelligence',
   'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
+  'Programming Language :: Python :: 3.12',
+  'Programming Language :: Python :: 3.13',
 ]
 keywords = [
   "protein-protein interaction",
@@ -23,8 +48,16 @@ keywords = [
   "computational biology",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=7.4.0", "pytest-cov>=4.0.0", "hypothesis>=6.0.0"]
+
 [project.scripts]
 deeprank-gnn-esm-predict = "deeprank_gnn.predict:main"
+
+[tool.pytest.ini_options]
+markers = [
+  "gpu: mark test as requiring a CUDA-capable GPU (skip with -m 'not gpu')",
+]
 
 [build-system]
 requires = ["setuptools"]

@@ -4,6 +4,7 @@ import numpy as np
 import networkx as nx
 from collections import OrderedDict
 import time
+from scipy.sparse import csr_matrix
 from deeprank_gnn.tools.embedding import manifold_embedding
 import community
 import markov_clustering as mc
@@ -289,7 +290,7 @@ class Graph(object):
                 cluster = community.best_partition(gtmp)
 
             elif method == "mcl":
-                matrix = nx.to_scipy_sparse_matrix(gtmp)
+                matrix = csr_matrix(nx.adjacency_matrix(gtmp))
                 # run MCL with default parameters
                 result = mc.run_mcl(matrix)
                 mcl_clust = mc.get_clusters(result)  # get clusters
@@ -396,8 +397,7 @@ class Graph(object):
         fig = go.Figure(
             data=[*internal_edge_trace_list, *edge_trace_list, *node_trace],
             layout=go.Layout(
-                title="<br>tSNE connection graph for %s" % self.pdb,
-                titlefont=dict(size=16),
+                title=dict(text="<br>tSNE connection graph for %s" % self.pdb, font=dict(size=16)),
                 showlegend=False,
                 hovermode="closest",
                 margin=dict(b=20, l=5, r=5, t=40),
@@ -531,8 +531,7 @@ class Graph(object):
         fig = go.Figure(
             data=[*node_trace, *internal_edge_trace_list, *edge_trace_list],
             layout=go.Layout(
-                title="<br>Connection graph for %s" % self.pdb,
-                titlefont=dict(size=16),
+                title=dict(text="<br>Connection graph for %s" % self.pdb, font=dict(size=16)),
                 showlegend=False,
                 hovermode="closest",
                 margin=dict(b=20, l=5, r=5, t=40),

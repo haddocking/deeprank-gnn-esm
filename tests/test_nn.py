@@ -1,9 +1,11 @@
 import unittest
 
-from deeprank_gnn.NeuralNet import NeuralNet
-from deeprank_gnn.ginet import GINet
+import pytest
 import torch
 import os
+
+from deeprank_gnn.NeuralNet import NeuralNet
+from deeprank_gnn.ginet import GINet
 
 CWD = os.path.dirname(os.path.realpath(__file__))
 
@@ -63,6 +65,37 @@ class TestNeuralNet(unittest.TestCase):
         for file in generated_files:
             os.remove(file)
 
+
+
+@pytest.mark.gpu
+class TestNeuralNetGPU(unittest.TestCase):
+
+    def setUp(self):
+        self.database = f'{CWD}/data/hdf5/1ATN_residue.hdf5'
+
+    def test_ginet_gpu(self):
+        NN = NeuralNet(self.database, GINet,
+                       node_feature=['type', 'polarity', 'bsa', 'charge', 'embedding'],
+                       edge_feature=['dist'],
+                       target='test_target',
+                       index=None,
+                       task='reg',
+                       batch_size=64,
+                       num_workers=4,
+                       percent=[0.8, 0.2],
+                       device_name='cuda:0',
+                       )
+
+        # verify the model parameters are on GPU
+        first_param = next(NN.model.parameters())
+        assert first_param.is_cuda, "Model parameters are not on CUDA"
+
+        NN.train(nepoch=2, validate=True)
+
+        generated_files = ['test.pth.tar', "train_data.hdf5", "treg_ytest_target_b64_e2_lr0.01.pth.tar"]
+        NN.save_model('test.pth.tar')
+        for f in generated_files:
+            os.remove(f)
 
 
 if __name__ == "__main__":

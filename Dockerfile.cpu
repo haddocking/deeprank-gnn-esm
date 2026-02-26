@@ -1,8 +1,8 @@
 # ==============================================================================
-FROM continuumio/anaconda3:2024.10-1
+FROM python:3.11-slim
+
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \
   build-essential \
@@ -10,16 +10,13 @@ RUN apt-get update && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
-# Copy deeprank-gnn-esm
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 WORKDIR /opt/deeprank-gnn-esm
 COPY . .
 
-# Setup environment and install
-RUN conda env create -f environment-cpu.yml -n env && \
-  conda clean -afy
-ENV PYTHONPATH="/opt/deeprank-gnn-esm/src:$PYTHONPATH"
+RUN uv pip install --system torch --extra-index-url https://download.pytorch.org/whl/cpu && \
+  uv pip install --system .
 
-# Define the entrypoint
-ENTRYPOINT ["conda", "run", "-n", "env", "python", "/opt/deeprank-gnn-esm/src/deeprank_gnn/predict.py"]
-
+ENTRYPOINT ["deeprank-gnn-esm-predict"]
 # ==============================================================================

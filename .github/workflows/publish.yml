@@ -1,0 +1,33 @@
+name: publish to pypi
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  pypi_release:
+    name: build and publish to pypi
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/deeprank-gnn-esm
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build
+
+      - name: build
+        run: python -m build
+
+      - name: publish to PyPI
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
