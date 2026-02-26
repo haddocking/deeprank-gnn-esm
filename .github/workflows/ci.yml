@@ -11,7 +11,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        # Only test older and newer supported versions
+        python-version: ["3.9", "3.13"]
       fail-fast: true
 
     steps:
