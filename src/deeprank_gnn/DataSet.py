@@ -11,6 +11,10 @@ import copy
 from .community_pooling import community_detection, community_pooling
 
 
+def _default_edge_feature_transform(x):
+    return np.tanh(-x / 2 + 2) + 1
+
+
 def DivideDataSet(dataset, percent=[0.8, 0.2], shuffle=True):
     """Divides the dataset into a training set and an evaluation set
 
@@ -101,7 +105,7 @@ class HDF5DataSet(Dataset):
         node_feature="all",
         edge_feature=["dist"],
         clustering_method="mcl",
-        edge_feature_transform=lambda x: np.tanh(-x / 2 + 2) + 1,
+        edge_feature_transform=_default_edge_feature_transform,
     ):
         """Class from which the hdf5 datasets are loaded.
 
