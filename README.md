@@ -2,11 +2,14 @@
 
 Graph Network for protein-protein interface including language model features.
 
-![GitHub License](https://img.shields.io/github/license/haddocking/deeprank-gnn-esm)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/deeprank-gnn-esm)
+![PyPI - Version](https://img.shields.io/pypi/v/deeprank-gnn-esm)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/deeprank-gnn-esm)
+![PyPI - License](https://img.shields.io/pypi/l/deeprank-gnn-esm)
 
 [![ci](https://github.com/haddocking/deeprank-gnn-esm/actions/workflows/ci.yml/badge.svg)](https://github.com/haddocking/deeprank-gnn-esm/actions/workflows/ci.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/0021542ee679422ea804cab5f74f724d)](https://app.codacy.com/gh/haddocking/deeprank-gnn-esm/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![Codacy Badge](https://app.codacy.com/project/badge/Coverage/0021542ee679422ea804cab5f74f724d)](https://app.codacy.com/gh/haddocking/deeprank-gnn-esm/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
+
 
 For details refer to our publication at <https://academic.oup.com/bioinformaticsadvances/article/4/1/vbad191/7511844>
 
