@@ -22,6 +22,19 @@ at <https://arxiv.org/abs/2407.16375>
 pip install deeprank-gnn-esm
 ```
 
+### Requirements
+
+Your Python interpreter must be compiled with `sqlite3` support (needed by `pdb2sql`
+for structure interface calculations). Most system Python installs already include
+this; check with::
+
+```bash
+python -c "import sqlite3"
+```
+
+If this raises `ModuleNotFoundError: No module named '_sqlite3'`, rebuild or
+reinstall Python with `sqlite3` support.
+
 ### CPU only
 
 To avoid downloading the heavy CUDA libraries (~3GB), install the CPU-only `torch` first:
