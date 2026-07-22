@@ -2,6 +2,8 @@
 data structure carried through the DeepRank-GNN-esm prediction pipeline."""
 
 import logging
+import shutil
+from itertools import combinations
 from pathlib import Path
 
 import torch
@@ -54,7 +56,7 @@ class PDBInput:
             new_model = Model.Model(model.id)
 
             for chain in model:
-                new_chain = Chain.Chain(chain.id)
+                new_chain = Chain(chain.id)
 
                 residue_number = 1
                 for res in chain:
@@ -132,23 +134,72 @@ class PDBInput:
         away - matching the naming GraphGenMP._add_embedding expects on disk."""
         return self._multi_fasta.write_embeddings(embeddings, output_dir)
 
-    def write_models(self, output_dir: Path) -> list:
-        """Write one single-model PDB file per model to output_dir, named to
-        match to_multi_fasta()'s label roots. Needed because downstream graph
-        generation (GraphHDF5/pdb2sql) reads real single-model PDB files
-        from disk, not in-memory Structures."""
-        output_dir.mkdir(parents=True, exist_ok=True)
+    def chain_pairs(self, model) -> list[tuple[str, str]]:
+        """All unordered chain-id pairs for a given model. The GNN predicts
+        fnat for a single two-chain interface, so a >2-chain model is scored
+        one pair at a time."""
+        chain_ids = sorted(chain.id for chain in model)
+        return list(combinations(chain_ids, 2))
+
+    def pair_name(self, model, chain_a: str, chain_b: str) -> str:
+        """Root name used for a given model/chain-pair's PDB/embedding/graph
+        entries."""
+        return f"{self.model_name(model)}_{chain_a}-{chain_b}"
+
+    def write_chain_pairs(
+        self, pdb_dir: Path, embedding_dir: Path
+    ) -> dict[str, tuple[str, str, str]]:
+        """Write one 2-chain PDB file per chain pair of each model to pdb_dir,
+        and copy that pair's per-chain embedding files (already written by
+        write_embeddings to embedding_dir) under matching pair-root names.
+
+        Needed because downstream graph generation (GraphHDF5/pdb2sql) scores
+        one two-chain interface per PDB file on disk, and GraphGenMP looks up
+        embeddings as "{pdb file stem}.{chain_id}.pt". Each written pair is
+        also relabeled to chain ids A/B, since pdb2sql.interface's contact
+        search defaults to (and only supports) chain1='A', chain2='B' -
+        original chain ids are kept only in the returned mapping, for
+        reporting.
+
+        Returns {pair_root: (pdb_id, chain_a, chain_b)} (original chain ids)
+        for every pair written.
+        """
+        pdb_dir.mkdir(parents=True, exist_ok=True)
 
         io = PDBIO()
-        saved_files = []
+        pair_info: dict[str, tuple[str, str, str]] = {}
+
         for model in self.models:
-            root = self.model_name(model)
-            output_file = output_dir / f"{root}.pdb"
-            io.set_structure(model)
-            io.save(str(output_file))
-            saved_files.append(output_file)
+            model_root = self.model_name(model)
+
+            for chain_a, chain_b in self.chain_pairs(model):
+                root = self.pair_name(model, chain_a, chain_b)
+
+                pair_structure = Structure.Structure(root)
+                pair_model = Model.Model(model.id)
+                for chain in model:
+                    if chain.id == chain_a:
+                        relabeled = chain.copy()
+                        relabeled.id = "A"
+                        pair_model.add(relabeled)
+                    elif chain.id == chain_b:
+                        relabeled = chain.copy()
+                        relabeled.id = "B"
+                        pair_model.add(relabeled)
+                pair_structure.add(pair_model)
+
+                io.set_structure(pair_structure)
+                io.save(str(pdb_dir / f"{root}.pdb"))
+
+                for chain_id, relabeled_id in ((chain_a, "A"), (chain_b, "B")):
+                    shutil.copyfile(
+                        embedding_dir / f"{model_root}.{chain_id}.pt",
+                        embedding_dir / f"{root}.{relabeled_id}.pt",
+                    )
+
+                pair_info[root] = (model_root, chain_a, chain_b)
 
         log.info(
-            f"Wrote {len(saved_files)} model(s) of structure {self.name} to {output_dir}"
+            f"Wrote {len(pair_info)} chain-pair PDB(s) of structure {self.name} to {pdb_dir}"
         )
-        return saved_files
+        return pair_info
