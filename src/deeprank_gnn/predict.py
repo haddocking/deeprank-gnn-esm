@@ -7,12 +7,9 @@ from Bio import BiopythonWarning
 warnings.filterwarnings("ignore", category=BiopythonWarning)
 warnings.filterwarnings("ignore", message=".*deprecated.*")
 
-import argparse
 import importlib.util
-import logging
 import os
 import re
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -20,19 +17,9 @@ import torch
 
 from deeprank_gnn.ginet import GINet
 from deeprank_gnn.GraphGenMP import GraphHDF5
-from deeprank_gnn.input import PDBInput
+from deeprank_gnn.logger import log
 from deeprank_gnn.NeuralNet import NeuralNet
 from deeprank_gnn.tools.hdf5_to_csv import hdf5_to_csv
-
-# Configure logging
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
-ch = logging.StreamHandler()
-formatter = logging.Formatter(
-    " %(asctime)s %(module)s:%(lineno)d %(levelname)s - %(message)s"
-)
-ch.setFormatter(formatter)
-log.addHandler(ch)
 
 
 spec = importlib.util.find_spec("deeprank_gnn")
@@ -121,8 +108,14 @@ def convert_to_csv(hdf5_path: str) -> str:
     return csv_path
 
 
-def parse_output(csv_output: str, workspace_path: Path, chain_ids: list) -> None:
-    """Parse the csv output and return the predicted fnat."""
+def parse_output(
+    csv_output: str, workspace_path: Path, pair_info: dict[str, tuple[str, str, str]]
+) -> None:
+    """Parse the csv output and return the predicted fnat.
+
+    pair_info maps each graph mol name (a "{pdb_id}_{chain_i}-{chain_j}" pair
+    root) to its (pdb_id, chain_i, chain_j).
+    """
     _data = []
     with open(csv_output, "r") as f:
         for line in f.readlines():
@@ -130,76 +123,19 @@ def parse_output(csv_output: str, workspace_path: Path, chain_ids: list) -> None
                 # this is a header
                 continue
             data = line.split(",")
-            pdb_id = re.findall(r"b'(.*)'", str(data[3]))[0]
+            mol = re.findall(r"b'(.*)'", str(data[3]))[0]
             predicted_fnat = float(data[5])
+            pdb_id, chain_i, chain_j = pair_info.get(mol, (mol, "?", "?"))
             log.info(
-                f"Predicted fnat for {pdb_id} between chain{chain_ids[0]} and chain{chain_ids[1]}: {predicted_fnat:.3f}"
+                f"Predicted fnat for {pdb_id} between chain{chain_i} and chain{chain_j}: {predicted_fnat:.3f}"
             )
-            _data.append([pdb_id, predicted_fnat])
+            _data.append([pdb_id, chain_i, chain_j, predicted_fnat])
 
     # output_fname = Path(workspace_path, "output.csv")
     with open(csv_output, "w") as f:
-        f.write("pdb_id,predicted_fnat\n")
+        f.write("pdb_id,chain_i,chain_j,predicted_fnat\n")
         for entry in _data:
-            pdb, fnat = entry
-            f.write(f"{pdb},{fnat:.3f}\n")
+            pdb_id, chain_i, chain_j, fnat = entry
+            f.write(f"{pdb_id},{chain_i},{chain_j},{fnat:.3f}\n")
 
     log.info(f"Output written to {csv_output}")
-
-
-def main():
-    """Main function."""
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("pdb_file", help="Path to the PDB file.")
-    parser.add_argument("num_cores", type=int, help="Number of cores to use")
-    args = parser.parse_args()
-
-    pdb_file = args.pdb_file
-    num_cores = args.num_cores
-
-    workspace_path = setup_workspace()
-
-    # Copy PDB file to workspace
-    src = Path(pdb_file)
-    copied_pdb_file = Path(workspace_path) / Path(pdb_file).name
-    shutil.copy(src, copied_pdb_file)
-
-    pdb_input = PDBInput.from_file(copied_pdb_file).renumber()
-    num_cores = min(num_cores, MAX_cores, len(pdb_input.models))
-    log.info(f"Using {num_cores} cores for processing")
-
-    ## Generate embeddings (one ESM call per unique sequence) and materialize
-    ## one .pt file per model/chain label for graph generation
-    embeddings = pdb_input.gen_embeddings()
-    pdb_input.write_embeddings(embeddings, output_dir=workspace_path)
-
-    ## Materialize one single-model PDB file per model for graph generation
-    structures_dir = workspace_path / "structures"
-    pdb_input.write_models(structures_dir)
-
-    ## Generate graph
-    graph = create_graph(
-        pdb_path=structures_dir, workspace_path=workspace_path, nproc=num_cores
-    )
-    ## Predict fnat
-    csv_output = predict(
-        input_info=graph, workspace_path=workspace_path, ncores=num_cores
-    )
-
-    ## Present the results
-    chain_ids = sorted({chain.id for model in pdb_input.models for chain in model})
-    parse_output(
-        csv_output=csv_output,
-        workspace_path=workspace_path,
-        chain_ids=chain_ids,
-    )
-
-    # Save the final prediction where the user invoked the command
-    result_file = Path.cwd() / Path(csv_output).name
-    shutil.copy(csv_output, result_file)
-    log.info(f"Result saved to {result_file}")
-
-
-if __name__ == "__main__":
-    main()
