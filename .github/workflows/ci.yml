@@ -38,6 +38,13 @@ jobs:
           -vv
           --hypothesis-show-statistics
 
+      - name: cache ESM model checkpoint
+        if: matrix.python-version == '3.14' && matrix.os == 'ubuntu-latest'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/torch/hub/checkpoints
+          key: esm2_t33_650M_UR50D
+
       - name: run end-to-end tests
         if: matrix.python-version == '3.14' && matrix.os == 'ubuntu-latest'
         run: >-

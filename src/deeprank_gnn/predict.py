@@ -120,7 +120,8 @@ def convert_to_csv(hdf5_path: str) -> str:
 
 
 def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) -> None:
-    """Parse the csv output and return the predicted fnat.
+    """Rewrite csv_output in place with pdb_id/chain_i/chain_j/predicted_fnat
+    columns, replacing the raw mol/prediction columns written by convert_to_csv.
 
     pair_info maps each graph mol name (a "{pdb_id}_{chain_i}-{chain_j}" pair
     root) to its (pdb_id, chain_i, chain_j).

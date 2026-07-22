@@ -11,6 +11,7 @@ from deeprank_gnn.predict import (
     predict,
     setup_workspace,
 )
+from deeprank_gnn.sequence import MultiFasta
 
 
 def main():
@@ -42,7 +43,8 @@ def main():
     structures_dir = workspace_path / "structures"
 
     try:
-        pair_info: dict[str, tuple[str, str, str]] = {}
+        pdb_inputs = []
+        combined_fasta = MultiFasta()
 
         for pdb_file in pdb_files:
             # Copy PDB file to workspace
@@ -52,9 +54,21 @@ def main():
 
             pdb_input = PDBInput.from_file(copied_pdb_file).renumber()
 
-            ## Generate embeddings (one ESM call per unique sequence) and materialize
-            ## one .pt file per model/chain label for graph generation
-            embeddings = pdb_input.gen_embeddings()
+            ## Collect this input's unique sequences into the shared pool, so
+            ## the ESM model is loaded and run once for every input PDB combined
+            for seq in pdb_input.to_multi_fasta().sequences.values():
+                combined_fasta.add(seq)
+
+            pdb_inputs.append(pdb_input)
+
+        ## Generate embeddings for every unique sequence across all inputs
+        ## (one ESM model load, one batch pass) and materialize one .pt file
+        ## per model/chain label for graph generation
+        embeddings = combined_fasta.gen_embeddings()
+
+        pair_info: dict[str, tuple[str, str, str]] = {}
+
+        for pdb_input in pdb_inputs:
             pdb_input.write_embeddings(embeddings, output_dir=workspace_path)
 
             ## Materialize one 2-chain PDB file per chain pair of each model
