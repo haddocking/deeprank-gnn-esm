@@ -171,7 +171,7 @@ def main():
 
     ## Generate embeddings (one ESM call per unique sequence) and materialize
     ## one .pt file per model/chain label for graph generation
-    embeddings = pdb_input.gen_embeddings(workspace_path)
+    embeddings = pdb_input.gen_embeddings()
     pdb_input.write_embeddings(embeddings, output_dir=workspace_path)
 
     ## Materialize one single-model PDB file per model for graph generation

@@ -2,45 +2,16 @@
 data structure carried through the DeepRank-GNN-esm prediction pipeline."""
 
 import logging
-from io import TextIOWrapper
 from pathlib import Path
 
 import torch
-from Bio.PDB import PDBIO, Chain, Model, PDBParser, Structure
-from esm import FastaBatchedDataset, pretrained
+from Bio.Data.PDBData import protein_letters_3to1
+from Bio.PDB import PDBIO, Model, PDBParser, Structure
+from Bio.PDB.Chain import Chain
+
+from deeprank_gnn.sequence import MultiFasta, Sequence
 
 log = logging.getLogger(__name__)
-
-ESM_MODEL = "esm2_t33_650M_UR50D"
-TOKS_PER_BATCH = 4096
-REPR_LAYERS = [33]
-TRUNCATION_SEQ_LENGTH = 2500
-
-
-def three_to_one() -> dict:
-    """three_to_one mapping of 20 standard amino acids."""
-    return {
-        "ALA": "A",
-        "ARG": "R",
-        "ASN": "N",
-        "ASP": "D",
-        "CYS": "C",
-        "GLN": "Q",
-        "GLU": "E",
-        "GLY": "G",
-        "HIS": "H",
-        "ILE": "I",
-        "LEU": "L",
-        "LYS": "K",
-        "MET": "M",
-        "PHE": "F",
-        "PRO": "P",
-        "SER": "S",
-        "THR": "T",
-        "TRP": "W",
-        "TYR": "Y",
-        "VAL": "V",
-    }
 
 
 class PDBInput:
@@ -51,10 +22,7 @@ class PDBInput:
     def __init__(self, structure: Structure.Structure, name: str):
         self.structure = structure
         self.name = name
-        self.label_map: dict[str, str] = {}  # set by to_fasta()
-        self.sequences: dict[
-            str, str
-        ] = {}  # set by to_fasta(): embedded label -> sequence
+        self._multi_fasta = MultiFasta()  # set by to_multi_fasta()
 
     @classmethod
     def from_file(cls, pdb_file_path: Path) -> "PDBInput":
@@ -103,138 +71,70 @@ class PDBInput:
         self.structure = new_structure
         return self
 
-    def to_fasta(self, main_fasta_fh: TextIOWrapper) -> dict[str, str]:
-        """Write one FASTA entry per unique sequence found across all
-        models/chains of this structure.
+    @staticmethod
+    def _chain_to_seq(chain: Chain) -> str:
+        sequence = ""
+
+        for residue in chain:
+            resname = residue.get_resname()
+            if resname in protein_letters_3to1:
+                sequence += protein_letters_3to1[resname]
+            else:
+                sequence += "X"  # Unknown/modified residue
+
+        return sequence
+
+    def to_multi_fasta(self) -> MultiFasta:
+        """Build one Sequence per model/chain of this structure and dedup
+        them by content into self._multi_fasta.
 
         Identical sequences (e.g. repeated across ensemble models, or
-        homodimer chains) are written once. Sets and returns self.label_map,
-        mapping every "{root}.{chain_id}" label to the label actually
-        written to the FASTA (and thus embedded) for its sequence.
+        homodimer chains) are kept once. self._multi_fasta.label_map maps
+        every "{root}.{chain_id}" label to the label actually embedded for
+        its sequence.
         """
         log.info(f"Reading sequence of structure {self.name}")
 
-        seq_to_label: dict[str, str] = {}  # sequence -> label written to the FASTA
-        label_map: dict[str, str] = {}  # every label -> label actually embedded
+        self._multi_fasta = MultiFasta()
 
         for model in self.models:
             root = self.model_name(model)
 
             for chain in model:
-                sequence = ""
-                modified_residue_count = 0  # Track modified residues
+                label = f"{root}.{chain.id}"
+                seq_obj = Sequence(label=label, sequence=self._chain_to_seq(chain))
 
-                for residue in chain:
-                    resname = residue.get_resname()
-                    try:
-                        sequence += three_to_one()[resname]
-                    except KeyError:
-                        sequence += "X"  # Unknown or modified residue
-                        modified_residue_count += 1
-
-                if modified_residue_count > 0:
-                    log.info(
-                        f"{modified_residue_count} unrecognized residues found in chain {chain.id} "
+                if seq_obj.modified_residue_count > 0:
+                    log.warning(
+                        f"Unrecognized residues found in chain {chain.id} "
                         f"of {root}. Use DeepRank-GNN-esm with caution: non-standard residues are not officially supported."
                     )
 
-                label = f"{root}.{chain.id}"
+                self._multi_fasta.add(seq_obj)
 
-                if sequence in seq_to_label:
-                    # Same sequence already written under another label - reuse its embedding.
-                    label_map[label] = seq_to_label[sequence]
-                else:
-                    seq_to_label[sequence] = label
-                    label_map[label] = label
-                    self.sequences[label] = sequence
-                    main_fasta_fh.write(f">{label}\n{sequence}\n")
+        return self._multi_fasta
 
-        self.label_map = label_map
-        return label_map
-
-    def gen_embeddings(self, workspace_path: Path) -> list[tuple[str, torch.Tensor]]:
+    def gen_embeddings(self) -> list[tuple[str, torch.Tensor]]:
         """Generate ESM embeddings for every unique sequence in this structure.
 
-        Writes the deduplicated multi-FASTA to workspace_path (via to_fasta),
-        runs ESM once over it, and returns one (sequence, embedding) pair per
-        unique sequence - one ESM call per unique sequence, not per chain/model.
+        Builds the deduplicated MultiFasta (via to_multi_fasta) and delegates
+        the ESM run to it - one ESM call per unique sequence, not per
+        chain/model.
         """
-        workspace_path.mkdir(parents=True, exist_ok=True)
-        fasta_path = workspace_path / f"{self.name}.fasta"
-
-        self.sequences = {}
-        with open(fasta_path, "w") as fh:
-            self.to_fasta(fh)
-
-        log.info(f"Generating embeddings for {len(self.sequences)} unique sequence(s).")
-
-        model, alphabet = pretrained.load_model_and_alphabet(ESM_MODEL)
-        model.eval()
-        if torch.cuda.is_available():
-            model = model.cuda()
-
-        dataset = FastaBatchedDataset.from_file(fasta_path)
-        batches = dataset.get_batch_indices(TOKS_PER_BATCH, extra_toks_per_seq=1)
-        data_loader = torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=alphabet.get_batch_converter(TRUNCATION_SEQ_LENGTH),
-            batch_sampler=batches,
-        )
-
-        repr_layers = [
-            (i + model.num_layers + 1) % (model.num_layers + 1) for i in REPR_LAYERS
-        ]
-        last_layer = repr_layers[-1]
-
-        results: list[tuple[str, torch.Tensor]] = []
-        with torch.no_grad():
-            for labels, strs, toks in data_loader:
-                if torch.cuda.is_available():
-                    toks = toks.to("cuda", non_blocking=True)
-
-                out = model(toks, repr_layers=repr_layers, return_contacts=False)
-                representations = {
-                    layer: t.cpu() for layer, t in out["representations"].items()
-                }
-
-                for i, label in enumerate(labels):
-                    truncate_len = min(TRUNCATION_SEQ_LENGTH, len(strs[i]))
-                    embedding = representations[last_layer][
-                        i, 1 : truncate_len + 1
-                    ].clone()
-                    results.append((self.sequences[label], embedding))
-
-        return results
+        self.to_multi_fasta()
+        return self._multi_fasta.gen_embeddings()
 
     def write_embeddings(
         self, embeddings: list[tuple[str, torch.Tensor]], output_dir: Path
     ) -> list[Path]:
         """Persist gen_embeddings() output as one {root}.{chain_id}.pt file per
         model/chain label - including labels whose sequence was deduplicated
-        away by to_fasta() - matching the naming GraphGenMP._add_embedding
-        expects on disk."""
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        seq_to_embedding = {sequence: embedding for sequence, embedding in embeddings}
-
-        saved_files = []
-        for label, canonical_label in self.label_map.items():
-            sequence = self.sequences[canonical_label]
-            embedding = seq_to_embedding[sequence]
-
-            output_file = output_dir / f"{label}.pt"
-            torch.save(
-                {"label": label, "representations": {REPR_LAYERS[-1]: embedding}},
-                output_file,
-            )
-            saved_files.append(output_file)
-
-        log.info(f"Wrote {len(saved_files)} embedding file(s) to {output_dir}")
-        return saved_files
+        away - matching the naming GraphGenMP._add_embedding expects on disk."""
+        return self._multi_fasta.write_embeddings(embeddings, output_dir)
 
     def write_models(self, output_dir: Path) -> list:
         """Write one single-model PDB file per model to output_dir, named to
-        match to_fasta()'s label roots. Needed because downstream graph
+        match to_multi_fasta()'s label roots. Needed because downstream graph
         generation (GraphHDF5/pdb2sql) reads real single-model PDB files
         from disk, not in-memory Structures."""
         output_dir.mkdir(parents=True, exist_ok=True)
