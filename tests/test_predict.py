@@ -26,7 +26,6 @@ class TestParseOutput(unittest.TestCase):
 
             parse_output(
                 csv_output=str(csv_output),
-                workspace_path=Path(tmpdir),
                 pair_info=pair_info,
             )
 
@@ -51,9 +50,7 @@ class TestParseOutput(unittest.TestCase):
             csv_output = Path(tmpdir) / "result.csv"
             csv_output.write_text(raw_csv)
 
-            parse_output(
-                csv_output=str(csv_output), workspace_path=Path(tmpdir), pair_info={}
-            )
+            parse_output(csv_output=str(csv_output), pair_info={})
 
             lines = csv_output.read_text().splitlines()
 
