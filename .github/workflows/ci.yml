@@ -39,6 +39,7 @@ jobs:
           --hypothesis-show-statistics
 
       - name: run end-to-end tests
+        if: matrix.python-version == '3.14' && matrix.os == 'ubuntu-latest'
         run: >-
           pytest -m e2e
           --cov

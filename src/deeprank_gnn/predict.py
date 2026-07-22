@@ -132,11 +132,12 @@ def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) ->
                 # this is a header
                 continue
             data = line.split(",")
-            mol = re.findall(r"b'(.*)'", str(data[3]))[0]
+            match = re.findall(r"b'(.*)'", str(data[3]))
+            mol = match[0] if match else str(data[3]).strip()
             predicted_fnat = float(data[5])
             pdb_id, chain_i, chain_j = pair_info.get(mol, (mol, "?", "?"))
             log.info(
-                f"Predicted fnat for {pdb_id} between chain{chain_i} and chain{chain_j}: {predicted_fnat:.3f}"
+                f"Predicted fnat for {pdb_id} between chain {chain_i} and chain {chain_j}: {predicted_fnat:.3f}"
             )
             _data.append([pdb_id, chain_i, chain_j, predicted_fnat])
 

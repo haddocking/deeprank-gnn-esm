@@ -37,52 +37,58 @@ def main():
 
     num_cores = args.num_cores
 
+    is_temp_workspace = args.output_dir is None
     workspace_path = setup_workspace(args.output_dir)
     structures_dir = workspace_path / "structures"
 
-    pair_info: dict[str, tuple[str, str, str]] = {}
+    try:
+        pair_info: dict[str, tuple[str, str, str]] = {}
 
-    for pdb_file in pdb_files:
-        # Copy PDB file to workspace
-        copied_pdb_file = workspace_path / pdb_file.name
-        shutil.copy(pdb_file, copied_pdb_file)
+        for pdb_file in pdb_files:
+            # Copy PDB file to workspace
+            copied_pdb_file = workspace_path / pdb_file.name
+            if copied_pdb_file.resolve() != pdb_file.resolve():
+                shutil.copy(pdb_file, copied_pdb_file)
 
-        pdb_input = PDBInput.from_file(copied_pdb_file).renumber()
+            pdb_input = PDBInput.from_file(copied_pdb_file).renumber()
 
-        ## Generate embeddings (one ESM call per unique sequence) and materialize
-        ## one .pt file per model/chain label for graph generation
-        embeddings = pdb_input.gen_embeddings()
-        pdb_input.write_embeddings(embeddings, output_dir=workspace_path)
+            ## Generate embeddings (one ESM call per unique sequence) and materialize
+            ## one .pt file per model/chain label for graph generation
+            embeddings = pdb_input.gen_embeddings()
+            pdb_input.write_embeddings(embeddings, output_dir=workspace_path)
 
-        ## Materialize one 2-chain PDB file per chain pair of each model
-        ## (the GNN scores one interface at a time), with matching embeddings
-        pair_info.update(pdb_input.write_chain_pairs(structures_dir, workspace_path))
+            ## Materialize one 2-chain PDB file per chain pair of each model
+            ## (the GNN scores one interface at a time), with matching embeddings
+            pair_info.update(pdb_input.write_chain_pairs(structures_dir, workspace_path))
 
-    if not pair_info:
-        parser.error("No chain pairs found: every input PDB has a single chain.")
+        if not pair_info:
+            parser.error("No chain pairs found: every input PDB has a single chain.")
 
-    num_cores = min(num_cores, MAX_cores, len(pair_info))
-    log.info(f"Using {num_cores} cores for processing")
+        num_cores = min(num_cores, MAX_cores, len(pair_info))
+        log.info(f"Using {num_cores} cores for processing")
 
-    ## Generate graph (one hdf5 covering every model of every input)
-    graph = create_graph(
-        pdb_path=structures_dir, workspace_path=workspace_path, nproc=num_cores
-    )
-    ## Predict fnat
-    csv_output = predict(
-        input_info=graph, workspace_path=workspace_path, ncores=num_cores
-    )
+        ## Generate graph (one hdf5 covering every model of every input)
+        graph = create_graph(
+            pdb_path=structures_dir, workspace_path=workspace_path, nproc=num_cores
+        )
+        ## Predict fnat
+        csv_output = predict(
+            input_info=graph, workspace_path=workspace_path, ncores=num_cores
+        )
 
-    ## Present the results
-    parse_output(
-        csv_output=csv_output,
-        pair_info=pair_info,
-    )
+        ## Present the results
+        parse_output(
+            csv_output=csv_output,
+            pair_info=pair_info,
+        )
 
-    # Save the final prediction where the user invoked the command
-    result_file = Path.cwd() / Path(csv_output).name
-    shutil.copy(csv_output, result_file)
-    log.info(f"Result saved to {result_file}")
+        # Save the final prediction where the user invoked the command
+        result_file = Path.cwd() / Path(csv_output).name
+        shutil.copy(csv_output, result_file)
+        log.info(f"Result saved to {result_file}")
+    finally:
+        if is_temp_workspace:
+            shutil.rmtree(workspace_path, ignore_errors=True)
 
 
 if __name__ == "__main__":

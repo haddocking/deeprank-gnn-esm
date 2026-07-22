@@ -8,4 +8,6 @@ _formatter = logging.Formatter(
     " %(asctime)s %(module)s:%(lineno)d %(levelname)s - %(message)s"
 )
 _ch.setFormatter(_formatter)
-log.addHandler(_ch)
+
+if not log.handlers:
+    log.addHandler(_ch)
