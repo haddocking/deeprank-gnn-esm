@@ -12,6 +12,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 import torch
 
@@ -36,9 +37,19 @@ BATCH_SIZE = 64
 ###########################################################
 
 
-def setup_workspace() -> Path:
-    """Create a temporary directory (under the system temp dir) for storing intermediate files."""
-    workspace = Path(tempfile.mkdtemp())
+def setup_workspace(output_dir: Optional[Path] = None) -> Path:
+    """Create the workspace directory for storing intermediate files.
+
+    If output_dir is given, it's created (if needed) and used directly, so
+    intermediate files persist for inspection. Otherwise a temporary
+    directory under the system temp dir is used, and left for the OS to
+    clean up."""
+    if output_dir is not None:
+        workspace = Path(output_dir)
+        workspace.mkdir(parents=True, exist_ok=True)
+    else:
+        workspace = Path(tempfile.mkdtemp())
+
     log.info(f"Setting up workspace - {workspace}")
     return workspace
 
@@ -108,9 +119,7 @@ def convert_to_csv(hdf5_path: str) -> str:
     return csv_path
 
 
-def parse_output(
-    csv_output: str, workspace_path: Path, pair_info: dict[str, tuple[str, str, str]]
-) -> None:
+def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) -> None:
     """Parse the csv output and return the predicted fnat.
 
     pair_info maps each graph mol name (a "{pdb_id}_{chain_i}-{chain_j}" pair
@@ -131,7 +140,6 @@ def parse_output(
             )
             _data.append([pdb_id, chain_i, chain_j, predicted_fnat])
 
-    # output_fname = Path(workspace_path, "output.csv")
     with open(csv_output, "w") as f:
         f.write("pdb_id,chain_i,chain_j,predicted_fnat\n")
         for entry in _data:

@@ -21,6 +21,13 @@ def main():
     parser.add_argument(
         "--num_cores", type=int, default=1, help="Number of cores to use (default: 1)"
     )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory to save intermediate files in (default: a temporary "
+        "directory that is discarded after the run).",
+    )
     args = parser.parse_args()
 
     pdb_files = [Path(p) for p in args.pdb_files]
@@ -30,7 +37,7 @@ def main():
 
     num_cores = args.num_cores
 
-    workspace_path = setup_workspace()
+    workspace_path = setup_workspace(args.output_dir)
     structures_dir = workspace_path / "structures"
 
     pair_info: dict[str, tuple[str, str, str]] = {}
@@ -51,6 +58,9 @@ def main():
         ## (the GNN scores one interface at a time), with matching embeddings
         pair_info.update(pdb_input.write_chain_pairs(structures_dir, workspace_path))
 
+    if not pair_info:
+        parser.error("No chain pairs found: every input PDB has a single chain.")
+
     num_cores = min(num_cores, MAX_cores, len(pair_info))
     log.info(f"Using {num_cores} cores for processing")
 
@@ -66,7 +76,6 @@ def main():
     ## Present the results
     parse_output(
         csv_output=csv_output,
-        workspace_path=workspace_path,
         pair_info=pair_info,
     )
 
