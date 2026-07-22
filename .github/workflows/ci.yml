@@ -29,17 +29,26 @@ jobs:
       - name: install package with dev dependencies
         run: uv pip install --system ".[dev]"
 
-      - name: run tests
+      - name: run unit tests
         run: >-
-          pytest --cov
+          pytest -m "not e2e"
+          --cov
           --cov-report xml:coverage.xml
           --cov-append
           -vv
           --hypothesis-show-statistics
 
+      - name: run end-to-end tests
+        run: >-
+          pytest -m e2e
+          --cov
+          --cov-report xml:coverage.xml
+          --cov-append
+          -vv
+
       - uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699
         if: >-
-          ${{ matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest' && (
+          ${{ matrix.python-version == '3.14' && matrix.os == 'ubuntu-latest' && (
           github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository) }}
         with:
