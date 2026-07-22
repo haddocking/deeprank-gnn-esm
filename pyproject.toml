@@ -58,6 +58,7 @@ deeprank-gnn-esm-predict = "deeprank_gnn.main:main"
 [tool.pytest.ini_options]
 markers = [
   "gpu: mark test as requiring a CUDA-capable GPU (skip with -m 'not gpu')",
+  "e2e: mark test as a full pipeline run (downloads/loads the ESM model, slower)",
 ]
 
 [build-system]
