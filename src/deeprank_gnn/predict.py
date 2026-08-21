@@ -127,6 +127,7 @@ def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) ->
     root) to its (pdb_id, chain_i, chain_j).
     """
     _data = []
+    model_totals: dict[str, float] = {}
     with open(csv_output, "r") as f:
         for line in f.readlines():
             if line.startswith(","):
@@ -141,6 +142,7 @@ def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) ->
                 f"Predicted fnat for {pdb_id} between chain {chain_i} and chain {chain_j}: {predicted_fnat:.3f}"
             )
             _data.append([pdb_id, chain_i, chain_j, predicted_fnat])
+            model_totals[pdb_id] = model_totals.get(pdb_id, 0.0) + predicted_fnat
 
     with open(csv_output, "w") as f:
         f.write("pdb_id,chain_i,chain_j,predicted_fnat\n")
@@ -149,3 +151,11 @@ def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) ->
             f.write(f"{pdb_id},{chain_i},{chain_j},{fnat:.3f}\n")
 
     log.info(f"Output written to {csv_output}")
+
+    summary_csv = str(csv_output).replace(".csv", "_summary.csv")
+    with open(summary_csv, "w") as f:
+        f.write("pdb_id,combined_fnat\n")
+        for pdb_id, total_fnat in model_totals.items():
+            f.write(f"{pdb_id},{total_fnat:.3f}\n")
+
+    log.info(f"Summary output written to {summary_csv}")
