@@ -62,21 +62,28 @@ Check [pytorch.org](https://pytorch.org/get-started/locally/) for the right CUDA
 ### As a scoring function
 
 We provide a command-line interface for `deeprank-gnn-esm` that can easily be
-used to score protein-protein complexes. The command-line interface can be used
-as follows:
+used to score protein-protein complexes. It accepts one or more PDB files
+(each optionally a multi-model ensemble) in a single invocation. Every pair
+of chains in each input structure is scored as a separate interface - a
+3-chain complex produces 3 pairwise predictions (A-B, A-C, B-C), an ensemble
+of N models produces predictions for every model. The command-line interface
+can be used as follows:
 
 ```bash
 $ deeprank-gnn-esm-predict -h
-usage: deeprank-gnn-esm-predict [-h] pdb_file chain_id_1 chain_id_2 num_cores
+usage: deeprank-gnn-esm-predict [-h] [--num_cores NUM_CORES] [--output-dir OUTPUT_DIR]
+                                 pdb_files [pdb_files ...]
 
 positional arguments:
-  pdb_file    Path to the PDB file.
-  chain_id_1  First chain ID.
-  chain_id_2  Second chain ID.
-  num_cores   Number of cores 
+  pdb_files             Path(s) to the PDB file(s).
 
 optional arguments:
-  -h, --help  show this help message and exit
+  -h, --help            show this help message and exit
+  --num_cores NUM_CORES
+                        Number of cores to use (default: 1)
+  --output-dir OUTPUT_DIR
+                        Directory to save intermediate files in (default: a
+                        temporary directory that is discarded after the run).
 ```
 
 Example, score the `1B6C` complex
@@ -85,43 +92,57 @@ Example, score the `1B6C` complex
 # download it
 $ wget https://files.rcsb.org/view/1B6C.pdb -q
 
-$ deeprank-gnn-esm-predict 1B6C.pdb A B 1
- 2023-06-28 06:08:21,889 predict:64 INFO - Setting up workspace - /home/deeprank-gnn-esm/1B6C-gnn_esm_pred_A_B
- 2023-06-28 06:08:21,945 predict:72 INFO - Renumbering PDB file.
- 2023-06-28 06:08:22,294 predict:104 INFO - Reading sequence of PDB 1B6C.pdb
- 2023-06-28 06:08:22,423 predict:131 INFO - Generating embedding for protein sequence.
- 2023-06-28 06:08:22,423 predict:132 INFO - ################################################################################
- 2023-06-28 06:08:32,447 predict:138 INFO - Transferred model to GPU
- 2023-06-28 06:08:32,450 predict:147 INFO - Read /home/1B6C-gnn_esm_pred_A_B/all.fasta with 2 sequences
- 2023-06-28 06:08:32,459 predict:157 INFO - Processing 1 of 1 batches (2 sequences)
- 2023-06-28 06:08:36,462 predict:200 INFO - ################################################################################
- 2023-06-28 06:08:36,470 predict:205 INFO - Generating graph, using 79 processors
- Graphs added to the HDF5 file
- Embedding added to the /home/1B6C-gnn_esm_pred_A_B/graph.hdf5 file file
- 2023-06-28 06:09:03,345 predict:220 INFO - Graph file generated: /home/deeprank-gnn-esm/1B6C-gnn_esm_pred_A_B/graph.hdf5
- 2023-06-28 06:09:03,345 predict:226 INFO - Predicting fnat of protein complex.
- 2023-06-28 06:09:03,345 predict:234 INFO - Using device: cuda:0
+$ deeprank-gnn-esm-predict 1B6C.pdb
+ 2026-07-22 06:08:21,889 predict:41 INFO - Setting up workspace - /tmp/tmpabcd1234
+ 2026-07-22 06:08:21,945 input:49 INFO - Renumbering structure 1B6C.
+ 2026-07-22 06:08:22,294 input:99 INFO - Reading sequence of structure 1B6C
+ 2026-07-22 06:08:22,423 sequence:57 INFO - Generating embeddings for 2 unique sequence(s).
+ 2026-07-22 06:08:32,459 input:212 INFO - Wrote 1 chain-pair PDB(s) of structure 1B6C to /tmp/tmpabcd1234/structures
+ 2026-07-22 06:08:36,470 predict:48 INFO - Generating graph, using 1 processors
+ 2026-07-22 06:09:03,345 predict:63 INFO - Graph file generated: /tmp/tmpabcd1234/graph.hdf5
+ 2026-07-22 06:09:03,345 predict:69 INFO - Predicting fnat of protein complex.
+ 2026-07-22 06:09:03,345 predict:77 INFO - Using device: cuda:0
  # ...
- 2023-06-28 06:09:07,794 predict:280 INFO - Predicted fnat for 1B6C between chainA and chainB: 0.359
- 2023-06-28 06:09:07,803 predict:290 INFO - Output written to /home/deeprank-gnn-esm/1B6C-gnn_esm_pred/GNN_esm_prediction.csv
+ 2026-07-22 06:09:07,794 predict:130 INFO - Predicted fnat for 1B6C between chain A and chain B: 0.359
+ 2026-07-22 06:09:07,803 predict:141 INFO - Output written to /tmp/tmpabcd1234/GNN_esm_prediction.csv
+ 2026-07-22 06:09:07,805 main:71 INFO - Result saved to /home/deeprank-gnn-esm/GNN_esm_prediction.csv
 ```
 
 From the output above you can see that the predicted fnat for the 1B6C
 complex is **0.359**, this information is also written to the
-`GNN_esm_prediction.csv` file.
-
-The command above will generate a folder in the current working directory,
-containing the following:
+`GNN_esm_prediction.csv` file in the directory you ran the command from:
 
 ```text
-1B6C-gnn_esm_pred_A_B
-├── 1B6C.pdb                   #input pdb file
-├── all.fasta                  #fasta sequence for the pdb input
-├── 1B6C.A.pt                  #esm-2 embedding for chainA in protein 1B6C
-├── 1B6C.B.pt                  #esm-2 embedding for chainB in protein 1B6C
+pdb_id,chain_i,chain_j,predicted_fnat
+1B6C,A,B,0.359
+```
+
+By default all intermediate files (renumbered PDB, per-chain embeddings,
+per-pair PDBs, graph/prediction hdf5) live in a temporary directory that's
+removed once the run finishes. Pass `--output-dir` to keep them around for
+inspection instead:
+
+```bash
+$ deeprank-gnn-esm-predict 1B6C.pdb --output-dir 1B6C-gnn_esm_pred
+```
+
+```text
+1B6C-gnn_esm_pred
+├── 1B6C.pdb                   #renumbered copy of the input pdb file
+├── 1B6C.A.pt                  #esm-2 embedding for chain A in protein 1B6C
+├── 1B6C.B.pt                  #esm-2 embedding for chain B in protein 1B6C
+├── structures/
+│   └── 1B6C_A-B.pdb           #2-chain pdb materialized for the A-B interface
 ├── graph.hdf5                 #input protein graph in hdf5 format
 ├── GNN_esm_prediction.hdf5    #prediction output in hdf5 format
 └── GNN_esm_prediction.csv     #prediction output in csv format
+```
+
+Multiple PDB files (including multi-model ensembles) can be scored in one
+call - each input must have a unique filename stem:
+
+```bash
+$ deeprank-gnn-esm-predict 1B6C.pdb ensemble.pdb --num_cores 4
 ```
 
 ### As a framework

@@ -2,39 +2,59 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import torch
-
-from deeprank_gnn.predict import get_embedding
+from deeprank_gnn.predict import parse_output
 
 
-class TestPredict(unittest.TestCase):
-    def test_get_embedding(self):
-        """Test that get_embedding generates embeddings correctly."""
-        # Create a temporary directory for test files
+class TestParseOutput(unittest.TestCase):
+    def test_rewrites_csv_with_chain_columns(self):
+        raw_csv = (
+            ",epoch,set,model,targets,prediction\n"
+            "0,0,test,b'1qu9_ABC_A-B',n,0.488\n"
+            "1,0,test,b'1qu9_ABC_A-C',n,0.484\n"
+            ",epoch,set,model,targets,prediction\n"
+            "0,0,test,b'2oob_A-B',n,0.792\n"
+        )
+        pair_info = {
+            "1qu9_ABC_A-B": ("1qu9_ABC", "A", "B"),
+            "1qu9_ABC_A-C": ("1qu9_ABC", "A", "C"),
+            "2oob_A-B": ("2oob", "A", "B"),
+        }
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
+            csv_output = Path(tmpdir) / "result.csv"
+            csv_output.write_text(raw_csv)
 
-            # Create a simple fasta file with a short sequence
-            fasta_file = tmpdir / "test.fasta"
-            fasta_file.write_text(">test_seq.A\nMKTAYIAKQRQISFVKSHFSRQLE\n")
+            parse_output(
+                csv_output=str(csv_output),
+                pair_info=pair_info,
+            )
 
-            # Create output directory
-            output_dir = tmpdir / "embeddings"
+            lines = csv_output.read_text().splitlines()
 
-            # Generate embeddings
-            embed_paths = get_embedding(fasta_file, output_dir)
+        self.assertEqual(lines[0], "pdb_id,chain_i,chain_j,predicted_fnat")
+        self.assertEqual(
+            lines[1:],
+            [
+                "1qu9_ABC,A,B,0.488",
+                "1qu9_ABC,A,C,0.484",
+                "2oob,A,B,0.792",
+            ],
+        )
 
-            # Verify output
-            self.assertEqual(len(embed_paths), 1)
-            self.assertTrue(embed_paths[0].exists())
-            self.assertTrue(str(embed_paths[0]).endswith(".pt"))
+    def test_unknown_mol_falls_back_to_placeholder_chains(self):
+        raw_csv = (
+            ",epoch,set,model,targets,prediction\n0,0,test,b'unknown_mol',n,0.100\n"
+        )
 
-            # Load and verify the embedding file
-            result = torch.load(embed_paths[0])
-            self.assertIn("label", result)
-            self.assertIn("representations", result)
-            self.assertIn("mean_representations", result)
-            self.assertEqual(result["label"], "test_seq.A")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_output = Path(tmpdir) / "result.csv"
+            csv_output.write_text(raw_csv)
+
+            parse_output(csv_output=str(csv_output), pair_info={})
+
+            lines = csv_output.read_text().splitlines()
+
+        self.assertEqual(lines[1], "unknown_mol,?,?,0.100")
 
 
 if __name__ == "__main__":
