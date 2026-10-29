@@ -50,10 +50,12 @@ class PDBInput:
         """Renumber residues in each chain of each model starting from 1
         with no gaps, mutating this instance's structure in place.
 
-        Only amino acids (including modified ones) are kept: waters, ions
-        and ligands would otherwise end up as "X" in the chain sequence and
-        change the ESM embeddings. Chains left without amino acids are
-        dropped."""
+        Only amino acids are kept: waters, ions and ligands would otherwise
+        end up as "X" in the chain sequence and change the ESM embeddings.
+        Modified amino acids, known or not, are kept (as "X"); a residue
+        counts as an amino acid when its name is a known (modified) amino
+        acid or it has the N, CA and C backbone atoms. Chains left without
+        amino acids are dropped."""
         log.info(f"Renumbering structure {self.name}.")
 
         new_structure = Structure.Structure("renumbered_structure")
@@ -68,7 +70,7 @@ class PDBInput:
 
                 residue_number = 1
                 for res in chain:
-                    if not is_aa(res, standard=False):
+                    if not self._is_amino_acid(res):
                         removed_residues += 1
                         continue
                     res = res.copy()
@@ -97,6 +99,14 @@ class PDBInput:
 
         self.structure = new_structure
         return self
+
+    @staticmethod
+    def _is_amino_acid(residue) -> bool:
+        """True for standard and modified amino acids, also those with a
+        residue name Biopython does not know, recognised by their backbone."""
+        return is_aa(residue, standard=False) or all(
+            atom in residue for atom in ("N", "CA", "C")
+        )
 
     @staticmethod
     def _chain_to_seq(chain: Chain) -> str:

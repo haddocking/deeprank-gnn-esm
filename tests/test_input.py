@@ -108,6 +108,32 @@ class TestRenumber(unittest.TestCase):
             pdb_input.to_multi_fasta().sequences["synth.A"].sequence, "MKTAYI"
         )
 
+    def test_renumber_keeps_unknown_modified_amino_acids(self):
+        structure = _make_structure([{"A": "MKTAYI", "B": "GGCLVK"}])
+        chain = structure[0]["A"]
+        # an unknown modified amino acid, recognised by its backbone atoms,
+        # between the 3rd and 4th residues
+        xyz = Residue.Residue(("H_XYZ", 3, "A"), "XYZ", "")
+        for name in ("N", "CA", "C", "O"):
+            xyz.add(Atom.Atom(name, np.zeros(3), 20.0, 1.0, " ", name, 1, name[0]))
+        residues = list(chain)
+        for res in residues[3:]:
+            chain.detach_child(res.id)
+        chain.add(xyz)
+        for res in residues[3:]:
+            chain.add(res)
+
+        pdb_input = PDBInput(structure, name="synth").renumber()
+
+        model = pdb_input.models[0]
+        self.assertEqual(
+            [(res.id[1], res.get_resname()) for res in model["A"]][2:5],
+            [(3, "THR"), (4, "XYZ"), (5, "ALA")],
+        )
+        self.assertEqual(
+            pdb_input.to_multi_fasta().sequences["synth.A"].sequence, "MKTXAYI"
+        )
+
     def test_renumber_drops_chains_without_amino_acids(self):
         structure = _make_structure([{"A": "MKTAYI", "B": "GGCLVK"}])
         water_chain = Chain.Chain("W")

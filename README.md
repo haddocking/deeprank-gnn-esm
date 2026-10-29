@@ -79,8 +79,9 @@ of chains in each input structure is scored as a separate interface - a
 of N models produces predictions for every model. A pair of chains without
 interface cannot be scored: its predicted fnat is reported as `NA`. Only amino
 acids are used: waters, ions and ligands are removed from the input, as well as
-chains that contain no amino acids. The command-line interface can be used as
-follows:
+chains that contain no amino acids. Modified amino acids are kept, but are not
+officially supported (they are unknown residues, `X`, for ESM-2). The
+command-line interface can be used as follows:
 
 ```bash
 $ deeprank-gnn-esm-predict -h
