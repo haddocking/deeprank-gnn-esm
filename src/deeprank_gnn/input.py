@@ -10,6 +10,7 @@ import torch
 from Bio.Data.PDBData import protein_letters_3to1
 from Bio.PDB import PDBIO, Model, PDBParser, Structure
 from Bio.PDB.Chain import Chain
+from Bio.PDB.Polypeptide import is_aa
 
 from deeprank_gnn.sequence import MultiFasta, Sequence
 
@@ -47,10 +48,17 @@ class PDBInput:
 
     def renumber(self) -> "PDBInput":
         """Renumber residues in each chain of each model starting from 1
-        with no gaps, mutating this instance's structure in place."""
+        with no gaps, mutating this instance's structure in place.
+
+        Only amino acids (including modified ones) are kept: waters, ions
+        and ligands would otherwise end up as "X" in the chain sequence and
+        change the ESM embeddings. Chains left without amino acids are
+        dropped."""
         log.info(f"Renumbering structure {self.name}.")
 
         new_structure = Structure.Structure("renumbered_structure")
+        removed_residues = 0
+        removed_chains = set()
 
         for model in self.structure:
             new_model = Model.Model(model.id)
@@ -60,15 +68,32 @@ class PDBInput:
 
                 residue_number = 1
                 for res in chain:
+                    if not is_aa(res, standard=False):
+                        removed_residues += 1
+                        continue
                     res = res.copy()
                     h, num, ins = res.id
                     res.id = (h, residue_number, ins)
                     new_chain.add(res)
                     residue_number += 1
 
+                if len(new_chain) == 0:
+                    removed_chains.add(chain.id)
+                    continue
                 new_model.add(new_chain)
 
             new_structure.add(new_model)
+
+        if removed_residues:
+            log.warning(
+                f"Removed {removed_residues} non-amino-acid residue(s) (waters, "
+                f"ions, ligands) from structure {self.name}."
+            )
+        if removed_chains:
+            log.warning(
+                f"Removed chain(s) {', '.join(sorted(removed_chains))} without "
+                f"amino acids from structure {self.name}."
+            )
 
         self.structure = new_structure
         return self

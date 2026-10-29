@@ -50,6 +50,7 @@ def PreCluster(dataset, method):
         dataset (HDF5DataSet object)
         method (srt): 'mcl' (Markov Clustering) or 'louvain'
     """
+    removed = []
     for fname, mol in tqdm(dataset.index_complexes):
 
         data = dataset.load_one_graph(fname, mol)
@@ -62,6 +63,7 @@ def PreCluster(dataset, method):
             except:
                 print("{} not found".format(mol))
             f5.close()
+            removed.append((fname, mol))
             continue
 
         f5 = h5py.File(fname, "a")
@@ -88,6 +90,11 @@ def PreCluster(dataset, method):
         else:
             f5.close()
             continue
+
+    # the deleted graphs would otherwise be loaded as None by the DataLoader
+    dataset.index_complexes = [
+        entry for entry in dataset.index_complexes if entry not in removed
+    ]
 
 
 class HDF5DataSet(Dataset):

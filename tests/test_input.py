@@ -86,6 +86,41 @@ class TestRenumber(unittest.TestCase):
         residue_numbers = [res.id[1] for res in chain]
         self.assertEqual(residue_numbers, list(range(1, len(residue_numbers) + 1)))
 
+    def test_renumber_removes_waters_and_ligands(self):
+        structure = _make_structure([{"A": "MKTAYI", "B": "GGCLVK"}])
+        chain = structure[0]["A"]
+        for i, resname in enumerate(("HOH", "ZN", "HEM"), start=1):
+            residue = Residue.Residue((f"H_{resname}", 100 + i, " "), resname, "")
+            chain.add(residue)
+        # a modified amino acid is kept
+        mse = Residue.Residue(("H_MSE", 200, " "), "MSE", "")
+        structure[0]["B"].add(mse)
+
+        pdb_input = PDBInput(structure, name="synth").renumber()
+
+        model = pdb_input.models[0]
+        self.assertEqual(
+            [res.get_resname() for res in model["A"]],
+            ["MET", "LYS", "THR", "ALA", "TYR", "ILE"],
+        )
+        self.assertEqual(len(model["B"]), 7)
+        self.assertEqual(
+            pdb_input.to_multi_fasta().sequences["synth.A"].sequence, "MKTAYI"
+        )
+
+    def test_renumber_drops_chains_without_amino_acids(self):
+        structure = _make_structure([{"A": "MKTAYI", "B": "GGCLVK"}])
+        water_chain = Chain.Chain("W")
+        for i in range(1, 4):
+            water_chain.add(Residue.Residue(("W", i, " "), "HOH", ""))
+        structure[0].add(water_chain)
+
+        pdb_input = PDBInput(structure, name="synth").renumber()
+
+        model = pdb_input.models[0]
+        self.assertEqual([chain.id for chain in model], ["A", "B"])
+        self.assertEqual(pdb_input.chain_pairs(model), [("A", "B")])
+
 
 class TestToMultiFasta(unittest.TestCase):
     def test_identical_sequences_are_deduped(self):
