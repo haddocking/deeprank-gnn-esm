@@ -131,12 +131,12 @@ pdb_id,chain_i,chain_j,predicted_fnat
 ```
 
 The `GNN_esm_prediction_summary.csv` file, written next to it, gives for every
-model the sum of the predicted fnat of its chain pairs (`NA` if none of its
-pairs could be scored):
+model the number of scored chain pairs and the mean, standard deviation and
+minimum of their predicted fnat (`NA` if none of its pairs could be scored):
 
 ```text
-pdb_id,combined_fnat
-1B6C,0.359
+pdb_id,scored_pairs,mean_fnat,std_fnat,min_fnat
+1B6C,1,0.359,0.000,0.359
 ```
 
 By default all intermediate files (renumbered PDB, per-chain embeddings,
@@ -158,7 +158,7 @@ $ deeprank-gnn-esm-predict 1B6C.pdb --output-dir 1B6C-gnn_esm_pred
 ├── graph.hdf5                 #input protein graph in hdf5 format
 ├── GNN_esm_prediction.hdf5    #prediction output in hdf5 format
 ├── GNN_esm_prediction.csv     #prediction output in csv format
-└── GNN_esm_prediction_summary.csv  #combined fnat per model in csv format
+└── GNN_esm_prediction_summary.csv  #fnat statistics per model in csv format
 ```
 
 Multiple PDB files (including multi-model ensembles) can be scored in one

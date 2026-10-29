@@ -10,6 +10,7 @@ warnings.filterwarnings("ignore", message=".*deprecated.*")
 import importlib.util
 import os
 import re
+import statistics
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -130,7 +131,9 @@ def graph_names(graph_path: str) -> set[str]:
 def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) -> str:
     """Rewrite csv_output in place with pdb_id/chain_i/chain_j/predicted_fnat
     columns, replacing the raw mol/prediction columns written by convert_to_csv,
-    and write the per-model summary next to it.
+    and write the per-model summary next to it: the number of scored pairs
+    and the mean, standard deviation (population) and minimum of their
+    predicted fnat.
 
     pair_info maps each graph mol name (a "{pdb_id}_{chain_i}-{chain_j}" pair
     root) to its (pdb_id, chain_i, chain_j). Every pair of pair_info is
@@ -156,18 +159,18 @@ def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) ->
     # predictions of unknown pairs (should not happen) are kept as well
     rows += [(mol, "?", "?", fnat) for mol, fnat in predictions.items()]
 
-    model_totals: dict[str, Optional[float]] = {}
+    model_fnats: dict[str, list[float]] = {}
     for pdb_id, chain_i, chain_j, fnat in rows:
         if fnat is None:
             log.warning(
                 f"No interface found for {pdb_id} between chain {chain_i} and chain {chain_j}: fnat reported as NA"
             )
-            model_totals.setdefault(pdb_id, None)
+            model_fnats.setdefault(pdb_id, [])
         else:
             log.info(
                 f"Predicted fnat for {pdb_id} between chain {chain_i} and chain {chain_j}: {fnat:.3f}"
             )
-            model_totals[pdb_id] = (model_totals.get(pdb_id) or 0.0) + fnat
+            model_fnats.setdefault(pdb_id, []).append(fnat)
 
     with open(csv_output, "w") as f:
         f.write("pdb_id,chain_i,chain_j,predicted_fnat\n")
@@ -178,9 +181,16 @@ def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) ->
 
     summary_csv = str(csv_output).replace(".csv", "_summary.csv")
     with open(summary_csv, "w") as f:
-        f.write("pdb_id,combined_fnat\n")
-        for pdb_id, total_fnat in model_totals.items():
-            f.write(f"{pdb_id},{_format_fnat(total_fnat)}\n")
+        f.write("pdb_id,scored_pairs,mean_fnat,std_fnat,min_fnat\n")
+        for pdb_id, fnats in model_fnats.items():
+            stats = (
+                (statistics.mean(fnats), statistics.pstdev(fnats), min(fnats))
+                if fnats
+                else (None, None, None)
+            )
+            f.write(
+                f"{pdb_id},{len(fnats)},{','.join(_format_fnat(x) for x in stats)}\n"
+            )
 
     log.info(f"Summary output written to {summary_csv}")
     return summary_csv

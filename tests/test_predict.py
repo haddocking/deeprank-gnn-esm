@@ -87,7 +87,13 @@ class TestParseOutput(unittest.TestCase):
             ],
         )
         self.assertEqual(Path(summary_csv).name, "result_summary.csv")
-        self.assertEqual(summary, ["pdb_id,combined_fnat", "1qu9_ABC,0.588"])
+        self.assertEqual(
+            summary,
+            [
+                "pdb_id,scored_pairs,mean_fnat,std_fnat,min_fnat",
+                "1qu9_ABC,2,0.294,0.194,0.100",
+            ],
+        )
 
     def test_no_prediction_at_all(self):
         pair_info = {"apart_A-B": ("apart", "A", "B")}
@@ -102,7 +108,10 @@ class TestParseOutput(unittest.TestCase):
             summary = Path(summary_csv).read_text().splitlines()
 
         self.assertEqual(lines, ["pdb_id,chain_i,chain_j,predicted_fnat", "apart,A,B,NA"])
-        self.assertEqual(summary, ["pdb_id,combined_fnat", "apart,NA"])
+        self.assertEqual(
+            summary,
+            ["pdb_id,scored_pairs,mean_fnat,std_fnat,min_fnat", "apart,0,NA,NA,NA"],
+        )
 
 
 if __name__ == "__main__":
