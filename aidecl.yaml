@@ -1,0 +1,30 @@
+# See https://ai-declaration.org/ for more information.
+schema_version: 1.0.0
+project:
+  name: deeprank-gnn-esm
+  repository: https://github.com/haddocking/deeprank-gnn-esm.git
+  content_type: software
+  license: Apache-2.0
+ai_usage:
+  used: true
+  summary: >-
+    Part of the unit tests added in v2.0.0 were generated with AI and checked
+    manually; Claude Code is used for later changes, always reviewed by a
+    human.
+  level: moderate
+  scope:
+    code_completion: false
+    code_review: false
+    code_generation: true
+    documentation: true
+    refactoring: false
+  tools:
+    - name: Claude Code
+      type: agent
+      hosting: cloud_vendor
+      purpose:
+        - agent in the terminal
+        - writing tests, documentation and code changes
+declaration:
+  date: '2026-10-29'
+  declared_by: amjjbonvin
