@@ -5,8 +5,70 @@ on:
     branches: [main]
 
 jobs:
+  # Decide whether the code has to be tested. The jobs are skipped when the PR
+  # changes no code (only *.md files), or when a push does not change the code
+  # of the PR (e.g. a conflict resolution in a *.md file, or a merge of main)
+  # and ci-passed succeeded on the previous head.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    outputs:
+      code: ${{ steps.code.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: check whether the code changed
+        id: code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTION: ${{ github.event.action }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # without pipefail, a failing git diff would give an empty patch id
+          set -o pipefail
+          code=true
+          # everything but the *.md files counts as code
+          paths=(. ':(exclude,glob)**/*.md')
+          # diff of the PR itself (against its merge base); patch-id ignores
+          # line numbers, so that merging main does not count as a change
+          patch_id() {
+            git diff "$(git merge-base "$BASE" "$1")" "$1" -- "${paths[@]}" \
+              | git patch-id --stable | cut -d' ' -f1
+          }
+          if ! git fetch -q --no-tags origin "$BASE" "$AFTER"; then
+            echo "Could not fetch the PR commits: testing everything."
+          elif ! after=$(patch_id "$AFTER"); then
+            echo "Could not compare the PR with its base: testing everything."
+          elif [ -z "$after" ]; then
+            code=false
+            echo "The PR changes no code."
+          elif [ "$ACTION" = synchronize ] \
+            && git fetch -q --no-tags origin "$BEFORE" \
+            && before=$(patch_id "$BEFORE") && [ "$before" = "$after" ]; then
+            # skipped jobs would hide failures: only skip when ci-passed
+            # succeeded on the previous head
+            passed=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${BEFORE}/check-runs" \
+              --jq '[.check_runs[] | select(.name == "ci-passed")]
+                    | (length > 0) and all(.conclusion == "success")' || echo false)
+            if [ "$passed" = true ]; then
+              code=false
+              echo "The code of the PR is unchanged and ci-passed succeeded on ${BEFORE}."
+            else
+              echo "The code of the PR is unchanged, but ci-passed did not succeed on ${BEFORE}."
+            fi
+          fi
+          echo "code=${code}"
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+
   test:
     name: test
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -65,7 +127,8 @@ jobs:
 
   build-docker:
     name: test if docker is buildable
-    needs: test
+    needs: [changes, test]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -75,3 +138,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - run: docker build -f Dockerfile.${{ matrix.variant }} .
+
+  ci-passed:
+    # One check summarising all jobs, also when they were skipped because the
+    # code did not change.
+    if: always()
+    needs: [changes, test, build-docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: all jobs passed
+        run: |
+          echo 'test: ${{ needs.test.result }}, build-docker: ${{ needs.build-docker.result }}'
+          test '${{ needs.changes.result }}' = success
+          if [ '${{ needs.changes.outputs.code }}' = false ]; then
+            echo 'No code to test (see the changes job).'
+            exit 0
+          fi
+          test '${{ needs.test.result }}' = success
+          test '${{ needs.build-docker.result }}' = success
