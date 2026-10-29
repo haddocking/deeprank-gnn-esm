@@ -126,6 +126,7 @@ class GraphHDF5(object):
                     except Exception as e:
                         print("Issue encountered while computing graph ", name)
                         print(e)
+                        GraphHDF5._remove_partial_graph(f5, g)
                     f.close()
                     os.remove(name)
             #print("Graphs added to the HDF5 file")
@@ -164,6 +165,14 @@ class GraphHDF5(object):
                 except Exception as e:
                     print("Issue encountered while storing graph ", g.pdb)
                     print(e)
+                    GraphHDF5._remove_partial_graph(f5, g)
+
+    @staticmethod
+    def _remove_partial_graph(f5, g):
+        """Remove the group left behind when storing a graph failed (e.g. a
+        chain pair without interface edges), so it is not read later on."""
+        if g.name in f5:
+            del f5[g.name]
 
     @staticmethod
     def _pickle_one_graph(name, pssm, ref, tmpdir="./", biopython=False):

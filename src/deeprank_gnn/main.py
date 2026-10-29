@@ -7,6 +7,7 @@ from deeprank_gnn.logger import log
 from deeprank_gnn.predict import (
     MAX_cores,
     create_graph,
+    graph_names,
     parse_output,
     predict,
     setup_workspace,
@@ -85,21 +86,29 @@ def main():
         graph = create_graph(
             pdb_path=structures_dir, workspace_path=workspace_path, nproc=num_cores
         )
-        ## Predict fnat
-        csv_output = predict(
-            input_info=graph, workspace_path=workspace_path, ncores=num_cores
-        )
+        ## Predict fnat; chain pairs without interface have no graph and
+        ## are reported as NA
+        if graph_names(graph):
+            csv_output = predict(
+                input_info=graph, workspace_path=workspace_path, ncores=num_cores
+            )
+        else:
+            log.warning("No chain pair has an interface: nothing to predict.")
+            csv_output = str(workspace_path / "GNN_esm_prediction.csv")
+            Path(csv_output).write_text("")
 
         ## Present the results
-        parse_output(
+        summary_csv = parse_output(
             csv_output=csv_output,
             pair_info=pair_info,
         )
 
         # Save the final prediction where the user invoked the command
-        result_file = Path.cwd() / Path(csv_output).name
-        shutil.copy(csv_output, result_file)
-        log.info(f"Result saved to {result_file}")
+        for output in (csv_output, summary_csv):
+            result_file = Path.cwd() / Path(output).name
+            if result_file.resolve() != Path(output).resolve():
+                shutil.copy(output, result_file)
+            log.info(f"Result saved to {result_file}")
     finally:
         if is_temp_workspace:
             shutil.rmtree(workspace_path, ignore_errors=True)

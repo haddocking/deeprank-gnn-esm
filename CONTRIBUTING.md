@@ -101,6 +101,8 @@ Checklist:
 - Tests added for new code.
 - Documentation added: docstrings, and `README.md` / `docs/` when the usage
   or installation changes.
+- `CHANGELOG.md` updated: one line per user-visible change, referring to the
+  issue.
 - Predicted fnat values unchanged, or changed with an explanation.
 - No new dependencies without discussion.
 - Prefer small, incremental changes, with passing tests at each step, over
@@ -110,8 +112,8 @@ Checklist:
 
 The version is set in `pyproject.toml` only; `deeprank_gnn.__version__` reads
 it from the installed package metadata and `docs/conf.py` from
-`pyproject.toml`. To release, update the version, merge, then create a GitHub
-release with a tag on `main`. Publishing the release runs
+`pyproject.toml`. To release, update the version and `CHANGELOG.md`, merge,
+then create a GitHub release with a tag on `main`. Publishing the release runs
 `.github/workflows/publish.yml`, which publishes the package on PyPI, and
 pushing the tag runs `.github/workflows/docker-publish.yml`, which publishes
 the CPU and GPU Docker images to ghcr.io.
