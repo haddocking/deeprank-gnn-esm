@@ -9,6 +9,7 @@ Graph Network for protein-protein interface including language model features.
 
 [![ci](https://github.com/haddocking/deeprank-gnn-esm/actions/workflows/ci.yml/badge.svg)](https://github.com/haddocking/deeprank-gnn-esm/actions/workflows/ci.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/0021542ee679422ea804cab5f74f724d)](https://app.codacy.com/gh/haddocking/deeprank-gnn-esm/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![AI Declaration](https://img.shields.io/badge/AI_Declaration-aidecl.yaml-blue)](aidecl.yaml)
 
 
 For details refer to our publication at <https://academic.oup.com/bioinformaticsadvances/article/4/1/vbad191/7511844>
@@ -18,9 +19,18 @@ at <https://arxiv.org/abs/2407.16375>
 
 ## Installation
 
+We recommend installing `deeprank-gnn-esm` in a Python virtual environment, to
+keep its dependencies separate from other projects:
+
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate      # csh/tcsh: source .venv/bin/activate.csh; Windows: .venv\Scripts\activate
+pip install --upgrade pip
 pip install deeprank-gnn-esm
 ```
+
+Activate the environment (`source .venv/bin/activate`) in every new shell
+before using `deeprank-gnn-esm`; the commands below assume it is active.
 
 ### Requirements
 
@@ -260,3 +270,11 @@ We provide a script (`scripts/pdb_renumber.py`) to do the numbering.
 
   model.test(hdf5 = "tmpdir/GNN_esm_prediction.hdf5")
   ```
+
+## AI Declaration
+
+Large language models (LLM) were used in this repository since v2.0.0: part of
+the unit tests were AI-generated and checked manually, and later changes are
+made with the help of Claude Code. The changes are always reviewed by a human
+before being merged. See [aidecl.yaml](aidecl.yaml) for machine-readable
+details of the LLM usage.
