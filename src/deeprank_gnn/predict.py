@@ -10,10 +10,12 @@ warnings.filterwarnings("ignore", message=".*deprecated.*")
 import importlib.util
 import os
 import re
+import statistics
 import tempfile
 from pathlib import Path
 from typing import Optional
 
+import h5py
 import torch
 
 from deeprank_gnn.ginet import GINet
@@ -119,43 +121,80 @@ def convert_to_csv(hdf5_path: str) -> str:
     return csv_path
 
 
-def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) -> None:
+def graph_names(graph_path: str) -> set[str]:
+    """Names of the graphs stored in the graph hdf5 file, i.e. of the chain
+    pairs that have an interface."""
+    with h5py.File(graph_path, "r") as f5:
+        return set(f5.keys())
+
+
+def parse_output(csv_output: str, pair_info: dict[str, tuple[str, str, str]]) -> str:
     """Rewrite csv_output in place with pdb_id/chain_i/chain_j/predicted_fnat
-    columns, replacing the raw mol/prediction columns written by convert_to_csv.
+    columns, replacing the raw mol/prediction columns written by convert_to_csv,
+    and write the per-model summary next to it: the number of scored pairs
+    and the mean, standard deviation (population) and minimum of their
+    predicted fnat.
 
     pair_info maps each graph mol name (a "{pdb_id}_{chain_i}-{chain_j}" pair
-    root) to its (pdb_id, chain_i, chain_j).
+    root) to its (pdb_id, chain_i, chain_j). Every pair of pair_info is
+    written, in that order; a pair without prediction (no interface between
+    its chains, so no graph) is reported as NA.
+
+    Returns the path of the summary csv.
     """
-    _data = []
-    model_totals: dict[str, float] = {}
+    predictions: dict[str, float] = {}
     with open(csv_output, "r") as f:
         for line in f.readlines():
-            if line.startswith(","):
-                # this is a header
+            if not line.strip() or line.startswith(","):
+                # empty line or header
                 continue
             data = line.split(",")
             match = re.findall(r"b'(.*)'", str(data[3]))
             mol = match[0] if match else str(data[3]).strip()
-            predicted_fnat = float(data[5])
-            pdb_id, chain_i, chain_j = pair_info.get(mol, (mol, "?", "?"))
-            log.info(
-                f"Predicted fnat for {pdb_id} between chain {chain_i} and chain {chain_j}: {predicted_fnat:.3f}"
+            predictions[mol] = float(data[5])
+
+    rows: list[tuple[str, str, str, Optional[float]]] = [
+        (*pair_info[mol], predictions.pop(mol, None)) for mol in pair_info
+    ]
+    # predictions of unknown pairs (should not happen) are kept as well
+    rows += [(mol, "?", "?", fnat) for mol, fnat in predictions.items()]
+
+    model_fnats: dict[str, list[float]] = {}
+    for pdb_id, chain_i, chain_j, fnat in rows:
+        if fnat is None:
+            log.warning(
+                f"No interface found for {pdb_id} between chain {chain_i} and chain {chain_j}: fnat reported as NA"
             )
-            _data.append([pdb_id, chain_i, chain_j, predicted_fnat])
-            model_totals[pdb_id] = model_totals.get(pdb_id, 0.0) + predicted_fnat
+            model_fnats.setdefault(pdb_id, [])
+        else:
+            log.info(
+                f"Predicted fnat for {pdb_id} between chain {chain_i} and chain {chain_j}: {fnat:.3f}"
+            )
+            model_fnats.setdefault(pdb_id, []).append(fnat)
 
     with open(csv_output, "w") as f:
         f.write("pdb_id,chain_i,chain_j,predicted_fnat\n")
-        for entry in _data:
-            pdb_id, chain_i, chain_j, fnat = entry
-            f.write(f"{pdb_id},{chain_i},{chain_j},{fnat:.3f}\n")
+        for pdb_id, chain_i, chain_j, fnat in rows:
+            f.write(f"{pdb_id},{chain_i},{chain_j},{_format_fnat(fnat)}\n")
 
     log.info(f"Output written to {csv_output}")
 
     summary_csv = str(csv_output).replace(".csv", "_summary.csv")
     with open(summary_csv, "w") as f:
-        f.write("pdb_id,combined_fnat\n")
-        for pdb_id, total_fnat in model_totals.items():
-            f.write(f"{pdb_id},{total_fnat:.3f}\n")
+        f.write("pdb_id,scored_pairs,mean_fnat,std_fnat,min_fnat\n")
+        for pdb_id, fnats in model_fnats.items():
+            stats = (
+                (statistics.mean(fnats), statistics.pstdev(fnats), min(fnats))
+                if fnats
+                else (None, None, None)
+            )
+            f.write(
+                f"{pdb_id},{len(fnats)},{','.join(_format_fnat(x) for x in stats)}\n"
+            )
 
     log.info(f"Summary output written to {summary_csv}")
+    return summary_csv
+
+
+def _format_fnat(fnat: Optional[float]) -> str:
+    return "NA" if fnat is None else f"{fnat:.3f}"

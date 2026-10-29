@@ -10,6 +10,7 @@ import torch
 from Bio.Data.PDBData import protein_letters_3to1
 from Bio.PDB import PDBIO, Model, PDBParser, Structure
 from Bio.PDB.Chain import Chain
+from Bio.PDB.Polypeptide import is_aa
 
 from deeprank_gnn.sequence import MultiFasta, Sequence
 
@@ -47,10 +48,19 @@ class PDBInput:
 
     def renumber(self) -> "PDBInput":
         """Renumber residues in each chain of each model starting from 1
-        with no gaps, mutating this instance's structure in place."""
+        with no gaps, mutating this instance's structure in place.
+
+        Only amino acids are kept: waters, ions and ligands would otherwise
+        end up as "X" in the chain sequence and change the ESM embeddings.
+        Modified amino acids, known or not, are kept (as "X"); a residue
+        counts as an amino acid when its name is a known (modified) amino
+        acid or it has the N, CA and C backbone atoms. Chains left without
+        amino acids are dropped."""
         log.info(f"Renumbering structure {self.name}.")
 
         new_structure = Structure.Structure("renumbered_structure")
+        removed_residues = 0
+        removed_chains = set()
 
         for model in self.structure:
             new_model = Model.Model(model.id)
@@ -60,18 +70,43 @@ class PDBInput:
 
                 residue_number = 1
                 for res in chain:
+                    if not self._is_amino_acid(res):
+                        removed_residues += 1
+                        continue
                     res = res.copy()
                     h, num, ins = res.id
                     res.id = (h, residue_number, ins)
                     new_chain.add(res)
                     residue_number += 1
 
+                if len(new_chain) == 0:
+                    removed_chains.add(chain.id)
+                    continue
                 new_model.add(new_chain)
 
             new_structure.add(new_model)
 
+        if removed_residues:
+            log.warning(
+                f"Removed {removed_residues} non-amino-acid residue(s) (waters, "
+                f"ions, ligands) from structure {self.name}."
+            )
+        if removed_chains:
+            log.warning(
+                f"Removed chain(s) {', '.join(sorted(removed_chains))} without "
+                f"amino acids from structure {self.name}."
+            )
+
         self.structure = new_structure
         return self
+
+    @staticmethod
+    def _is_amino_acid(residue) -> bool:
+        """True for standard and modified amino acids, also those with a
+        residue name Biopython does not know, recognised by their backbone."""
+        return is_aa(residue, standard=False) or all(
+            atom in residue for atom in ("N", "CA", "C")
+        )
 
     @staticmethod
     def _chain_to_seq(chain: Chain) -> str:

@@ -14,6 +14,7 @@
 - [ ] Tests cover the new and/or changed code
 - [ ] Documentation updated if needed (`README.md`, `docs/`)
 - [ ] Predicted fnat values unchanged, or the change is explained
+- [ ] `CHANGELOG.md` updated for user-facing changes
 
 ## Related issues
 <!-- Link any relevant GitHub issues -->
