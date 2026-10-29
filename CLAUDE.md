@@ -27,6 +27,10 @@ improve it, do not assume it is already optimal.
 - `docs/`: the Sphinx documentation.
 - `aidecl.yaml`: the AI declaration; update it when a new AI tool or kind of
   use is added.
+- `CHANGELOG.md`: add one line per user-visible change, referring to the
+  issue.
+- `CONTRIBUTING.md`: development setup, code layout, tests, pull requests
+  and releases. Follow it.
 
 ## Rules for agents
 
