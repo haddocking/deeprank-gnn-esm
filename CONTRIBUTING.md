@@ -87,10 +87,8 @@ The GitHub workflow (`.github/workflows/ci.yml`) runs on every pull request:
 the unit tests on Linux (x86_64 and ARM) and macOS with Python 3.9 and 3.14,
 the end-to-end tests on Linux with Python 3.14, and the build of the CPU and
 GPU Docker images. Run the tests locally before pushing.
-These jobs are skipped when a pull request changes only `*.md` files, or when
-a push does not change the code of the pull request (e.g. merging `main`) and
-`ci-passed` succeeded on the previous commit; `ci-passed` then still reports
-success.
+These jobs are skipped when a pull request changes only `*.md` files;
+`ci-passed` then still reports success.
 
 If AI tools played a meaningful role, say so in the pull request (the template
 has a section for it), and update `aidecl.yaml`, the project's AI declaration,
