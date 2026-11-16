@@ -15,103 +15,133 @@ from deeprank_gnn.predict import (
 from deeprank_gnn.sequence import MultiFasta
 
 
-def main():
-    """Main function."""
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("pdb_files", nargs="+", help="Path(s) to the PDB file(s).")
-    parser.add_argument(
-        "--num_cores", type=int, default=1, help="Number of cores to use (default: 1)"
+parser = argparse.ArgumentParser(
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=None,
-        help="Directory to save intermediate files in (default: a temporary "
-        "directory that is discarded after the run).",
+parser.add_argument(
+    "pdb_files",
+    nargs="+",
+    help="Path(s) to the PDB file(s)."
     )
-    args = parser.parse_args()
+parser.add_argument(
+    "--num_cores",
+    type=int,
+    default=1,
+    help="Number of cores to use.",
+)
+parser.add_argument(
+    "--output-dir",
+    type=Path,
+    default=None,
+    help=(
+        "Directory to save intermediate files in "
+        "(default: a temporary directory that is discarded after the run)."
+    ),
+)
 
-    pdb_files = [Path(p) for p in args.pdb_files]
+
+def validate_input_pdbs(input_pdb_files):
+    """Validate input PDB files all have a unique name."""
+    pdb_files = [Path(p) for p in input_pdb_files]
     stems = [pdb_file.stem for pdb_file in pdb_files]
     if len(set(stems)) != len(stems):
         parser.error("Input PDB files must have unique names.")
+    return pdb_files
 
-    num_cores = args.num_cores
 
-    is_temp_workspace = args.output_dir is None
-    workspace_path = setup_workspace(args.output_dir)
+def validate_ncores(num_cores):
+    """Make sure at least one core is used."""
+    return max(1, num_cores)
+
+
+def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
+    pdb_inputs = []
+    combined_fasta = MultiFasta()
+
+    for pdb_file in pdb_files:
+        # Copy PDB file to workspace
+        copied_pdb_file = workspace_path / pdb_file.name
+        if copied_pdb_file.resolve() != pdb_file.resolve():
+            shutil.copy(pdb_file, copied_pdb_file)
+
+        pdb_input = PDBInput.from_file(copied_pdb_file).renumber()
+
+        ## Collect this input's unique sequences into the shared pool, so
+        ## the ESM model is loaded and run once for every input PDB combined
+        for seq in pdb_input.to_multi_fasta().sequences.values():
+            combined_fasta.add(seq)
+
+        pdb_inputs.append(pdb_input)
+
+    ## Generate embeddings for every unique sequence across all inputs
+    ## (one ESM model load, one batch pass) and materialize one .pt file
+    ## per model/chain label for graph generation
+    embeddings = combined_fasta.gen_embeddings()
+
+    pair_info: dict[str, tuple[str, str, str]] = {}
+
+    for pdb_input in pdb_inputs:
+        pdb_input.write_embeddings(embeddings, output_dir=workspace_path)
+
+        ## Materialize one 2-chain PDB file per chain pair of each model
+        ## (the GNN scores one interface at a time), with matching embeddings
+        pair_info.update(pdb_input.write_chain_pairs(structures_dir, workspace_path))
+
+    if not pair_info:
+        parser.error("No chain pairs found: every input PDB has a single chain.")
+
+    ncores = min(num_cores, MAX_cores, len(pair_info))
+    log.info(f"Using {ncores} cores for processing")
+
+    ## Generate graph (one hdf5 covering every model of every input)
+    graph = create_graph(
+        pdb_path=structures_dir, workspace_path=workspace_path, nproc=ncores,
+    )
+    ## Predict fnat; chain pairs without interface have no graph and
+    ## are reported as NA
+    if graph_names(graph):
+        csv_output = predict(
+            input_info=graph, workspace_path=workspace_path, ncores=ncores,
+        )
+    else:
+        log.warning("No chain pair has an interface: nothing to predict.")
+        csv_output = str(workspace_path / "GNN_esm_prediction.csv")
+        Path(csv_output).write_text("")
+
+    ## Present the results
+    summary_csv = parse_output(
+        csv_output=csv_output,
+        pair_info=pair_info,
+    )
+
+    # Save the final prediction where the user invoked the command
+    for output in (csv_output, summary_csv):
+        result_file = Path.cwd() / Path(output).name
+        if result_file.resolve() != Path(output).resolve():
+            shutil.copy(output, result_file)
+        log.info(f"Result saved to {result_file}")
+
+
+def cli_pipeline(input_pdb_files, num_cores=1, output_dir=None):
+    """Main function."""
+    pdb_files = validate_input_pdbs(input_pdb_files)
+
+    # Setup working directory
+    is_temp_workspace = output_dir is None
+    workspace_path = setup_workspace(output_dir)
     structures_dir = workspace_path / "structures"
 
     try:
-        pdb_inputs = []
-        combined_fasta = MultiFasta()
-
-        for pdb_file in pdb_files:
-            # Copy PDB file to workspace
-            copied_pdb_file = workspace_path / pdb_file.name
-            if copied_pdb_file.resolve() != pdb_file.resolve():
-                shutil.copy(pdb_file, copied_pdb_file)
-
-            pdb_input = PDBInput.from_file(copied_pdb_file).renumber()
-
-            ## Collect this input's unique sequences into the shared pool, so
-            ## the ESM model is loaded and run once for every input PDB combined
-            for seq in pdb_input.to_multi_fasta().sequences.values():
-                combined_fasta.add(seq)
-
-            pdb_inputs.append(pdb_input)
-
-        ## Generate embeddings for every unique sequence across all inputs
-        ## (one ESM model load, one batch pass) and materialize one .pt file
-        ## per model/chain label for graph generation
-        embeddings = combined_fasta.gen_embeddings()
-
-        pair_info: dict[str, tuple[str, str, str]] = {}
-
-        for pdb_input in pdb_inputs:
-            pdb_input.write_embeddings(embeddings, output_dir=workspace_path)
-
-            ## Materialize one 2-chain PDB file per chain pair of each model
-            ## (the GNN scores one interface at a time), with matching embeddings
-            pair_info.update(pdb_input.write_chain_pairs(structures_dir, workspace_path))
-
-        if not pair_info:
-            parser.error("No chain pairs found: every input PDB has a single chain.")
-
-        num_cores = min(num_cores, MAX_cores, len(pair_info))
-        log.info(f"Using {num_cores} cores for processing")
-
-        ## Generate graph (one hdf5 covering every model of every input)
-        graph = create_graph(
-            pdb_path=structures_dir, workspace_path=workspace_path, nproc=num_cores
-        )
-        ## Predict fnat; chain pairs without interface have no graph and
-        ## are reported as NA
-        if graph_names(graph):
-            csv_output = predict(
-                input_info=graph, workspace_path=workspace_path, ncores=num_cores
-            )
-        else:
-            log.warning("No chain pair has an interface: nothing to predict.")
-            csv_output = str(workspace_path / "GNN_esm_prediction.csv")
-            Path(csv_output).write_text("")
-
-        ## Present the results
-        summary_csv = parse_output(
-            csv_output=csv_output,
-            pair_info=pair_info,
-        )
-
-        # Save the final prediction where the user invoked the command
-        for output in (csv_output, summary_csv):
-            result_file = Path.cwd() / Path(output).name
-            if result_file.resolve() != Path(output).resolve():
-                shutil.copy(output, result_file)
-            log.info(f"Result saved to {result_file}")
+        deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir)
     finally:
         if is_temp_workspace:
             shutil.rmtree(workspace_path, ignore_errors=True)
+
+
+def main():
+    """Command Line Interface entry point."""
+    args = parser.parse_args()
+    cli_pipeline(args.pdb_files, num_cores=args.num_cores, output_dir=args.output_dir)
 
 
 if __name__ == "__main__":
