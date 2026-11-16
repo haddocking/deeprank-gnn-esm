@@ -122,7 +122,7 @@ def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
         log.info(f"Result saved to {result_file}")
 
 
-def cli_pipeline(input_pdb_files, num_cores=1, output_dir=None):
+def _main(input_pdb_files, num_cores=1, output_dir=None):
     """Main function."""
     pdb_files = validate_input_pdbs(input_pdb_files)
 
@@ -141,7 +141,7 @@ def cli_pipeline(input_pdb_files, num_cores=1, output_dir=None):
 def main():
     """Command Line Interface entry point."""
     args = parser.parse_args()
-    cli_pipeline(args.pdb_files, num_cores=args.num_cores, output_dir=args.output_dir)
+    _main(args.pdb_files, num_cores=args.num_cores, output_dir=args.output_dir)
 
 
 if __name__ == "__main__":
