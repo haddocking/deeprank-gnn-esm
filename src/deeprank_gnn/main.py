@@ -49,9 +49,12 @@ def validate_input_pdbs(input_pdb_files):
     return pdb_files
 
 
-def validate_ncores(num_cores):
-    """Make sure at least one core is used."""
-    return max(1, num_cores)
+def validate_ncores(num_cores, nb_pairs):
+    """Make sure at least one core is used and optimize based on query."""
+    # Optimize based on query
+    ncores = min(num_cores, MAX_cores, len(nb_pairs))
+    # Make sure there is at least one core used
+    return max(1, ncores)
 
 
 def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
@@ -90,7 +93,7 @@ def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
     if not pair_info:
         parser.error("No chain pairs found: every input PDB has a single chain.")
 
-    ncores = min(num_cores, MAX_cores, len(pair_info))
+    ncores = validate_ncores(num_cores, len(pair_info))
     log.info(f"Using {ncores} cores for processing")
 
     ## Generate graph (one hdf5 covering every model of every input)
