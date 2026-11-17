@@ -52,7 +52,7 @@ def validate_input_pdbs(input_pdb_files):
 def validate_ncores(num_cores, nb_pairs):
     """Make sure at least one core is used and optimize based on query."""
     # Optimize based on query
-    ncores = min(num_cores, MAX_cores, len(nb_pairs))
+    ncores = min(num_cores, MAX_cores, nb_pairs)
     # Make sure there is at least one core used
     return max(1, ncores)
 
