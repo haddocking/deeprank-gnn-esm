@@ -44,7 +44,7 @@ improve it, do not assume it is already optimal.
   a change alters the output on purpose.
 - Do not modify or replace the pre-trained models (`*.pth.tar`, `*.pt`) in
   `src/deeprank_gnn/data/` and `paper_pretrained_models/`.
-- Python 3.9 to 3.14 must stay supported (see the CI matrix): avoid syntax and
-  features newer than 3.9.
+- Python 3.10 to 3.14 must stay supported (see the CI matrix): avoid syntax and
+  features newer than 3.14.
 - Never create or push tags or releases unless explicitly asked: a tag
   publishes the Docker images and a release publishes the package on PyPI.

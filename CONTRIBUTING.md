@@ -6,7 +6,7 @@ your changes and get them merged. For using deeprank-gnn-esm, see `README.md`.
 
 ## Development setup
 
-deeprank-gnn-esm supports Python 3.9 to 3.14. Your Python must be compiled with
+deeprank-gnn-esm supports Python 3.10 to 3.14. Your Python must be compiled with
 `sqlite3` support (see `README.md`).
 
 ```bash
@@ -53,7 +53,7 @@ The pre-trained models (`*.pth.tar`) must not be changed or replaced.
 Follow the style of the surrounding code and [PEP 8](https://peps.python.org/pep-0008/).
 Give new modules, public classes and functions a docstring (PEP 257, summary on
 the first line) and type annotations. Do not use syntax or features newer than
-Python 3.9.
+Python 3.10.
 
 ## Tests
 
@@ -84,7 +84,7 @@ template. Before it can be merged, a pull request needs:
 - a branch that is up to date with `main`.
 
 The GitHub workflow (`.github/workflows/ci.yml`) runs on every pull request:
-the unit tests on Linux (x86_64 and ARM) and macOS with Python 3.9 and 3.14,
+the unit tests on Linux (x86_64 and ARM) and macOS with Python 3.10 and 3.14,
 the end-to-end tests on Linux with Python 3.14, and the build of the CPU and
 GPU Docker images. Run the tests locally before pushing.
 These jobs are skipped when a pull request changes only `*.md` files;

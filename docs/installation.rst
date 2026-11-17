@@ -1,7 +1,7 @@
 Installation
 =========================
 
-deeprank-gnn-esm requires Python 3.9 to 3.14. Your Python interpreter must be
+deeprank-gnn-esm requires Python 3.10 to 3.14. Your Python interpreter must be
 compiled with ``sqlite3`` support (needed by ``pdb2sql``); check with:
 
 ``python3 -c "import sqlite3"``
