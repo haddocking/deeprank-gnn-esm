@@ -14,7 +14,6 @@ from deeprank_gnn.predict import (
 )
 from deeprank_gnn.sequence import MultiFasta
 
-
 parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -34,8 +33,8 @@ parser.add_argument(
     type=Path,
     default=None,
     help=(
-        "Directory to save intermediate files in "
-        "(default: a temporary directory that is discarded after the run)."
+        "Directory to save intermediate files in. By default, "
+        "a temporary directory that is discarded after the run."
     ),
 )
 
@@ -45,7 +44,7 @@ def validate_input_pdbs(input_pdb_files):
     pdb_files = [Path(p) for p in input_pdb_files]
     stems = [pdb_file.stem for pdb_file in pdb_files]
     if len(set(stems)) != len(stems):
-        parser.error("Input PDB files must have unique names.")
+        raise ValueError("Input PDB files must have unique names.")
     return pdb_files
 
 
@@ -57,7 +56,7 @@ def validate_ncores(num_cores, nb_pairs):
     return max(1, ncores)
 
 
-def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
+def deeprank_pipeline(pdb_files, num_cores, workspace_path):
     pdb_inputs = []
     combined_fasta = MultiFasta()
 
@@ -81,6 +80,8 @@ def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
     ## per model/chain label for graph generation
     embeddings = combined_fasta.gen_embeddings()
 
+    structures_dir = workspace_path / "structures"
+
     pair_info: dict[str, tuple[str, str, str]] = {}
 
     for pdb_input in pdb_inputs:
@@ -91,20 +92,20 @@ def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
         pair_info.update(pdb_input.write_chain_pairs(structures_dir, workspace_path))
 
     if not pair_info:
-        parser.error("No chain pairs found: every input PDB has a single chain.")
+        raise ValueError("No chain pairs found: every input PDB has a single chain.")
 
     ncores = validate_ncores(num_cores, len(pair_info))
     log.info(f"Using {ncores} cores for processing")
 
     ## Generate graph (one hdf5 covering every model of every input)
     graph = create_graph(
-        pdb_path=structures_dir, workspace_path=workspace_path, nproc=ncores,
+        pdb_path=structures_dir, workspace_path=workspace_path, nproc=ncores
     )
     ## Predict fnat; chain pairs without interface have no graph and
     ## are reported as NA
     if graph_names(graph):
         csv_output = predict(
-            input_info=graph, workspace_path=workspace_path, ncores=ncores,
+            input_info=graph, workspace_path=workspace_path, ncores=ncores
         )
     else:
         log.warning("No chain pair has an interface: nothing to predict.")
@@ -125,17 +126,16 @@ def deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir):
         log.info(f"Result saved to {result_file}")
 
 
-def _main(input_pdb_files, num_cores=1, output_dir=None):
+def run_predictions(input_pdb_files, num_cores=1, output_dir=None):
     """Main function."""
     pdb_files = validate_input_pdbs(input_pdb_files)
 
     # Setup working directory
     is_temp_workspace = output_dir is None
     workspace_path = setup_workspace(output_dir)
-    structures_dir = workspace_path / "structures"
 
     try:
-        deeprank_pipeline(pdb_files, num_cores, workspace_path, structures_dir)
+        deeprank_pipeline(pdb_files, num_cores, workspace_path)
     finally:
         if is_temp_workspace:
             shutil.rmtree(workspace_path, ignore_errors=True)
@@ -144,7 +144,14 @@ def _main(input_pdb_files, num_cores=1, output_dir=None):
 def main():
     """Command Line Interface entry point."""
     args = parser.parse_args()
-    _main(args.pdb_files, num_cores=args.num_cores, output_dir=args.output_dir)
+    try:
+        run_predictions(
+            args.pdb_files,
+            num_cores=args.num_cores,
+            output_dir=args.output_dir,
+            )
+    except ValueError as e:
+        parser.error(str(e))
 
 
 if __name__ == "__main__":

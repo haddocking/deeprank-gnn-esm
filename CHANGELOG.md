@@ -2,7 +2,7 @@
 
 ## v2.0.2
 
-- Divide the command line interface entry point `main()` into two funtions: `main()` -> `_main()`. The first one (`main()`) reads the command line arguments from the user, and gives, use argparse to load it, and send it to the `_main()` function. This small change allows to use the `_main()` as library without the need of `sys.argv` arguments present. For users, nothing should change and those changes should not affect in any manner.
+- Refactor `main()` to ease the use as a library. Divided the command line interface entry point `main()` into two functions: `main()` -> `run_predictions()`. The first one (`main()`) reads the command line arguments from the user, and gives, use argparse to load it, and send it to the `run_predictions()` function ([#50](https://github.com/haddocking/deeprank-gnn-esm/pull/50)).
 - Python 3.9 is no longer supported; deeprank-gnn-esm now requires Python 3.10 to 3.14 ([#50](https://github.com/haddocking/deeprank-gnn-esm/pull/50)).
 
 ## v2.0.1
